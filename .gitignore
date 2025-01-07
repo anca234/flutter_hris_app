@@ -95,6 +95,22 @@ ios/Pods/
 **/ios/ServiceDefinitions.json
 **/ios/Runner/GeneratedPluginRegistrant.*
 
+# macOS specific
+**/macos/**
+**/macos/Flutter/GeneratedPluginRegistrant.*
+
+# Linux specific
+**/linux/**
+**/linux/flutter/generated_plugin_registrant.cc
+**/linux/flutter/generated_plugin_registrant.h
+
+# Web specific
+**/web/**
+web/favicon.png
+web/icons/**
+web/index.html
+web/manifest.json
+
 # IDE specific
 .idea/
 .vscode/
