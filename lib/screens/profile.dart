@@ -1,7 +1,43 @@
 import 'package:flutter/material.dart';
+import 'package:secondly/screens/auth_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({Key? key}) : super(key: key);
+
+  void _handleLogout(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Logout'),
+          content: const Text('Are you sure you want to logout?'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // Close the dialog
+              },
+              child: const Text('Cancel',
+                  style: TextStyle(color: Color.fromARGB(255, 0, 0, 0))),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (context) => AuthScreen()),
+                  (Route<dynamic> route) => false,
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+              ),
+              child:
+                  const Text('Logout', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -60,18 +96,34 @@ class ProfileScreen extends StatelessWidget {
                 decoration: InputDecoration(labelText: 'Address:'),
               ),
               const SizedBox(height: 20),
-              Center(
-                child: ElevatedButton(
-                  onPressed: () {},
-                  child: const Text('Edit Profile'),
-                ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  ElevatedButton(
+                    onPressed: () => _handleLogout(context),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                    ),
+                    child: const Text(
+                      'Logout',
+                      style:
+                          TextStyle(color: Color.fromARGB(255, 255, 255, 255)),
+                    ),
+                  ),
+                  const SizedBox(width: 70),
+                  ElevatedButton(
+                    onPressed: () {},
+                    child: const Text('Edit Profile',
+                        style: TextStyle(color: Color.fromARGB(255, 0, 0, 0))),
+                  ),
+                ],
               ),
               const SizedBox(height: 10),
               Center(
                 child: TextButton(
                   onPressed: () {},
                   child: const Text(
-                    'more detail',
+                    'More Detail',
                     style: TextStyle(color: Colors.blue),
                   ),
                 ),
