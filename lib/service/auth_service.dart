@@ -19,6 +19,8 @@ class AuthService {
         email: 'admin@example.com',
         fullName: 'Admin User',
         permissions: ['all_access', 'admin'],
+        jobTitle: 'DEVELOPER',
+        employeeId: 0
       );
 
       // Create dummy response
@@ -37,6 +39,8 @@ class AuthService {
         'email': dummyResponse.user.email,
         'full_name': dummyResponse.user.fullName,
         'permissions': dummyResponse.user.permissions,
+        'employee_id': dummyResponse.user.employeeId,
+        'job_title': dummyResponse.user.jobTitle
       }));
 
       return dummyResponse;
@@ -67,6 +71,8 @@ class AuthService {
             'email': loginResponse.user.email,
             'full_name': loginResponse.user.fullName,
             'permissions': loginResponse.user.permissions,
+            'employee_id': loginResponse.user.employeeId,
+            'job_title': loginResponse.user.jobTitle
           }));
         }
 

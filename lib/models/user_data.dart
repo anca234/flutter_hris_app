@@ -4,6 +4,8 @@ class UserData {
   final String email;
   final String fullName;
   final List<String> permissions;
+  final String jobTitle;
+  final int employeeId;
 
   UserData({
     required this.userId,
@@ -11,6 +13,8 @@ class UserData {
     required this.email,
     required this.fullName,
     required this.permissions,
+    required this.jobTitle,
+    required this.employeeId
   });
 
   factory UserData.fromJson(Map<String, dynamic> json) {
@@ -19,7 +23,10 @@ class UserData {
       username: json['username'] ?? '',
       email: json['email'] ?? '',
       fullName: json['full_name'] ?? '',
+      jobTitle: json['job_title'] ?? '',
       permissions: List<String>.from(json['permissions'] ?? []),
+      employeeId: json['employee_id'] ?? 0
+
     );
   }
 }

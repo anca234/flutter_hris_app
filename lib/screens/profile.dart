@@ -1,8 +1,71 @@
 import 'package:flutter/material.dart';
 import 'package:secondly/screens/auth_screen.dart';
+import 'package:secondly/models/user_data.dart';
+import 'package:secondly/service/auth_service.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
+
+  @override
+  _ProfileScreenState createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  UserData? userData;
+  final TextEditingController nameController = TextEditingController();
+  final TextEditingController jobTitleController = TextEditingController();
+  final TextEditingController departmentController = TextEditingController();
+  final TextEditingController employeeIdController = TextEditingController();
+  final TextEditingController emailController = TextEditingController();
+  final TextEditingController usernameController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    final data = await AuthService.getStoredUserData();
+    if (data != null) {
+      setState(() {
+        userData = data;
+        nameController.text = data.fullName;
+        jobTitleController.text = data.jobTitle;
+        emailController.text = data.email;
+        employeeIdController.text = data.employeeId.toString();
+        usernameController.text = data.username;
+      });
+    }
+  }
+
+  Widget _buildProfilePicture() {
+    if (userData == null) {
+      return const CircleAvatar(
+        radius: 50,
+        backgroundColor: Colors.grey,
+        child: Icon(Icons.person, size: 50, color: Colors.white),
+      );
+    }
+
+    return CircleAvatar(
+      radius: 50,
+      backgroundColor: Colors.grey,
+      child: ClipOval(
+        child: Image(
+          image: NetworkImage(
+            'https://dev.osp.id/ptap-kpi-dev/dist/img/profilepicture/${userData!.employeeId}.png',
+          ),
+          fit: BoxFit.cover,
+          width: 100,
+          height: 100,
+          errorBuilder: (context, error, stackTrace) {
+            return const Icon(Icons.person, size: 50, color: Colors.white);
+          },
+        ),
+      ),
+    );
+  }
 
   void _handleLogout(BuildContext context) {
     showDialog(
@@ -14,14 +77,14 @@ class ProfileScreen extends StatelessWidget {
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.of(context).pop(); // Close the dialog
+                Navigator.of(context).pop();
               },
               child: const Text('Cancel',
                   style: TextStyle(color: Color.fromARGB(255, 0, 0, 0))),
             ),
             ElevatedButton(
-              onPressed: () {
-                Navigator.of(context).pop();
+              onPressed: () async {
+                await AuthService.logout();
                 Navigator.of(context).pushAndRemoveUntil(
                   MaterialPageRoute(builder: (context) => AuthScreen()),
                   (Route<dynamic> route) => false,
@@ -30,8 +93,8 @@ class ProfileScreen extends StatelessWidget {
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.red,
               ),
-              child:
-                  const Text('Logout', style: TextStyle(color: Colors.white)),
+              child: const Text('Logout', 
+                  style: TextStyle(color: Colors.white)),
             ),
           ],
         );
@@ -56,7 +119,6 @@ class ProfileScreen extends StatelessWidget {
         ],
       ),
       backgroundColor: const Color.fromARGB(255, 255, 255, 255),
-      resizeToAvoidBottomInset: true,
       body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(16.0),
@@ -64,64 +126,74 @@ class ProfileScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 20),
-              const Center(
-                child: CircleAvatar(
-                  radius: 50,
-                  backgroundColor: Colors.grey,
+              Center(
+                child: _buildProfilePicture(),
+              ),
+              const SizedBox(height: 20),
+              TextField(
+                controller: nameController,
+                readOnly: true,
+                decoration: const InputDecoration(
+                  labelText: 'Employee Name',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: usernameController,
+                readOnly: true,
+                decoration: const InputDecoration(
+                  labelText: 'Username',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: jobTitleController,
+                readOnly: true,
+                decoration: const InputDecoration(
+                  labelText: 'Job Title',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: employeeIdController,
+                readOnly: true,
+                decoration: const InputDecoration(
+                  labelText: 'Employee ID',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: emailController,
+                readOnly: true,
+                decoration: const InputDecoration(
+                  labelText: 'Email',
+                  border: OutlineInputBorder(),
                 ),
               ),
               const SizedBox(height: 20),
-              const TextField(
-                decoration: InputDecoration(labelText: 'Employee Name:'),
-              ),
-              const TextField(
-                decoration: InputDecoration(labelText: 'Job Title:'),
-              ),
-              const TextField(
-                decoration: InputDecoration(labelText: 'Department:'),
-              ),
-              const TextField(
-                decoration: InputDecoration(labelText: 'Employee ID:'),
-              ),
-              const TextField(
-                decoration: InputDecoration(labelText: 'Email:'),
-              ),
-              const TextField(
-                decoration: InputDecoration(labelText: 'Phone:'),
-              ),
-              const TextField(
-                decoration: InputDecoration(labelText: 'Date of Birth:'),
-              ),
-              const TextField(
-                decoration: InputDecoration(labelText: 'Address:'),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  ElevatedButton(
-                    onPressed: () => _handleLogout(context),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
-                    ),
-                    child: const Text(
-                      'Logout',
-                      style:
-                          TextStyle(color: Color.fromARGB(255, 255, 255, 255)),
-                    ),
+              Center(
+                child: ElevatedButton(
+                  onPressed: () => _handleLogout(context),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
                   ),
-                  const SizedBox(width: 70),
-                  ElevatedButton(
-                    onPressed: () {},
-                    child: const Text('Edit Profile',
-                        style: TextStyle(color: Color.fromARGB(255, 0, 0, 0))),
+                  child: const Text(
+                    'Logout',
+                    style: TextStyle(color: Colors.white),
                   ),
-                ],
+                ),
               ),
               const SizedBox(height: 10),
               Center(
                 child: TextButton(
-                  onPressed: () {},
+                  onPressed: () {
+                    // Handle more detail
+                  },
                   child: const Text(
                     'More Detail',
                     style: TextStyle(color: Colors.blue),
@@ -133,5 +205,16 @@ class ProfileScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    nameController.dispose();
+    jobTitleController.dispose();
+    departmentController.dispose();
+    employeeIdController.dispose();
+    emailController.dispose();
+    usernameController.dispose();
+    super.dispose();
   }
 }

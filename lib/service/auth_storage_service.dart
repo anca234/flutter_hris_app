@@ -17,6 +17,8 @@ class AuthStorageService {
       'email': response.user.email,
       'full_name': response.user.fullName,
       'permissions': response.user.permissions,
+      'employee_id': response.user.employeeId,
+      'job_title': response.user.jobTitle
     }));
   }
 
