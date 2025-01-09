@@ -29,4 +29,16 @@ class UserData {
 
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'user_id': userId,
+      'username': username,
+      'email': email,
+      'full_name': fullName,
+      'permissions': permissions,
+      'employee_id': employeeId,
+      'job_title': jobTitle,
+    };
+  }
 }

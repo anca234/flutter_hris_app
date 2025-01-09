@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:secondly/screens/onboarding_screen.dart';
 
+import 'service/auth_service.dart';
+
 void main() {
   runApp(const MyApp());
 }
@@ -14,6 +16,12 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       home: const OnboardingScreen(),
     );
+  }
+
+  void main() async {
+    WidgetsFlutterBinding.ensureInitialized();
+    await AuthService.init();
+    runApp(const MyApp());
   }
 }
 

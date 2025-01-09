@@ -1,7 +1,7 @@
 class ApiConfig {
   static const String baseUrl = 'https://dev.osp.id/ptap-kpi-dev';
+  static const bool isDevelopment = true; // Set to false for production
   
-  // You can add other API configurations here
   static const Map<String, String> headers = {
     'Content-Type': 'application/json',
   };
