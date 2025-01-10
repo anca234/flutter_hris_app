@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:secondly/service/attendance_service.dart';
 
 class AttendancePage extends StatefulWidget {
   const AttendancePage({super.key});
@@ -11,29 +14,147 @@ class AttendancePageState extends State<AttendancePage> {
   DateTime? clockInTime;
   DateTime? clockOutTime;
   String totalWorkingTime = "--:--:-- hours";
-
   bool isClockedIn = false;
+  bool isLoading = false;
+  
+  // Location related variables
+  Position? currentPosition;
+  String? currentAddress;
+  String? googleMapsUrl;
 
-  void handleClockInOut() {
-    setState(() {
-      if (!isClockedIn) {
-        clockInTime = DateTime.now();
-        isClockedIn = true;
-      } else {
-        clockOutTime = DateTime.now();
-        isClockedIn = false;
+    // Function to get location permission and current position
+  Future<bool> _handleLocationPermission() async {
+    bool serviceEnabled;
+    LocationPermission permission;
 
-        if (clockInTime != null && clockOutTime != null) {
-          final difference = clockOutTime!.difference(clockInTime!);
-          final hours = difference.inHours;
-          final minutes = difference.inMinutes.remainder(60);
-          final seconds = difference.inSeconds.remainder(60);
-          totalWorkingTime =
-              "${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')} hours";
-        }
+    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      _showErrorSnackBar('Location services are disabled. Please enable the services');
+      return false;
+    }
+
+    permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        _showErrorSnackBar('Location permissions are denied');
+        return false;
       }
-    });
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      _showErrorSnackBar('Location permissions are permanently denied');
+      return false;
+    }
+
+    return true;
   }
+
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message))
+    );
+  }
+
+  // Function to get current position
+  Future<void> _getCurrentPosition() async {
+    final hasPermission = await _handleLocationPermission();
+    if (!hasPermission) return;
+
+    try {
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high
+      );
+      setState(() {
+        currentPosition = position;
+        googleMapsUrl = 'https://www.google.com/maps/@${position.latitude},${position.longitude},18z';
+      });
+      
+      await _getAddressFromLatLng(position);
+    } catch (e) {
+      debugPrint(e.toString());
+      _showErrorSnackBar('Failed to get current location');
+    }
+  }
+
+  // Function to get address from coordinates
+  Future<void> _getAddressFromLatLng(Position position) async {
+    try {
+      List<Placemark> placemarks = await placemarkFromCoordinates(
+        position.latitude,
+        position.longitude,
+      );
+
+      Placemark place = placemarks[0];
+      setState(() {
+        currentAddress = 
+          '${place.street}, ${place.subLocality}, '
+          '${place.subAdministrativeArea}, ${place.postalCode}, '
+          '${place.country}';
+      });
+    } catch (e) {
+      debugPrint(e.toString());
+      _showErrorSnackBar('Failed to get address');
+    }
+  }
+
+  // Enhanced clock in/out function with API integration
+  Future<void> handleClockInOut() async {
+    if (isLoading) return;
+
+    setState(() {
+      isLoading = true;
+    });
+
+    try {
+      // Get location
+      await _getCurrentPosition();
+
+      if (currentPosition == null || currentAddress == null || googleMapsUrl == null) {
+        _showErrorSnackBar('Failed to get location information');
+        return;
+      }
+
+      // Record attendance via API
+      final success = await AttendanceService.recordAttendance(
+        address: currentAddress!,
+        addressLink: googleMapsUrl!,
+      );
+
+      if (success) {
+        setState(() {
+          if (!isClockedIn) {
+            clockInTime = DateTime.now();
+            isClockedIn = true;
+          } else {
+            clockOutTime = DateTime.now();
+            isClockedIn = false;
+
+            if (clockInTime != null && clockOutTime != null) {
+              final difference = clockOutTime!.difference(clockInTime!);
+              final hours = difference.inHours;
+              final minutes = difference.inMinutes.remainder(60);
+              final seconds = difference.inSeconds.remainder(60);
+              totalWorkingTime =
+                  "${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')} hours";
+            }
+          }
+        });
+      } else {
+        _showErrorSnackBar('Failed to record attendance');
+      }
+    } catch (e) {
+      debugPrint(e.toString());
+      _showErrorSnackBar('An error occurred');
+    } finally {
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
+
+
+  
 
   @override
   Widget build(BuildContext context) {
@@ -73,7 +194,7 @@ class AttendancePageState extends State<AttendancePage> {
                 ),
                 onPressed: handleClockInOut,
                 child: Text(
-                  isClockedIn ? "Clock Out" : "Clock In",
+                  isClockedIn ? "Clock Out" : "Clock Ins",
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 26,
