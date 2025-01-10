@@ -9,27 +9,25 @@ class AuthScreen extends StatelessWidget {
   final TextEditingController _passwordController = TextEditingController();
   AuthScreen({super.key});
 
-  
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color.fromARGB(255, 255, 255, 255),
-      body: SingleChildScrollView(
-        child: Padding(
+        backgroundColor: const Color.fromARGB(255, 255, 255, 255),
+        body: SingleChildScrollView(
+            child: Padding(
           padding: EdgeInsets.only(
             top: 16,
             left: 16,
             right: 16,
             // Add bottom padding to handle keyboard
             bottom: MediaQuery.of(context).viewInsets.bottom + 16,
-          ), 
+          ),
           child: Center(
-          // Gunakan Center untuk memusatkan konten
+            // Gunakan Center untuk memusatkan konten
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment:
-                  CrossAxisAlignment.center, // Pusatkan konten secara horizontal
+              crossAxisAlignment: CrossAxisAlignment
+                  .center, // Pusatkan konten secara horizontal
               children: [
                 const SizedBox(height: 20),
                 const Text(
@@ -59,7 +57,8 @@ class AuthScreen extends StatelessWidget {
                         borderRadius: BorderRadius.circular(10.0),
                         side: BorderSide(color: Colors.red)),
                     backgroundColor: const Color.fromRGBO(204, 0, 0, 1.0),
-                    padding: EdgeInsets.symmetric(horizontal: 133, vertical: 10),
+                    padding:
+                        EdgeInsets.symmetric(horizontal: 133, vertical: 10),
                   ),
                   child: const Text('Sign In',
                       style: TextStyle(
@@ -67,31 +66,10 @@ class AuthScreen extends StatelessWidget {
                         fontSize: 20,
                       )),
                 ),
-                const SizedBox(height: 10),
-                TextButton(
-                  onPressed: () {
-                    showComingSoonPopup(context);
-                  },
-                  style: ElevatedButton.styleFrom(
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10.0),
-                        side: BorderSide(
-                            color: const Color.fromARGB(255, 181, 173, 173))),
-                    backgroundColor: const Color.fromRGBO(217, 217, 217, 1.0),
-                    padding: EdgeInsets.symmetric(horizontal: 130, vertical: 10),
-                  ),
-                  child: const Text('Sign Up',
-                      style: TextStyle(
-                        color: Color.fromARGB(255, 84, 82, 82),
-                        fontSize: 20,
-                      )),
-                )
               ],
             ),
           ),
-        )
-      )
-    );
+        )));
   }
 
   void showComingSoonPopup(BuildContext context) {
@@ -122,11 +100,10 @@ class AuthScreen extends StatelessWidget {
         return SingleChildScrollView(
           child: Padding(
             padding: EdgeInsets.only(
-              left: 16,
-              right: 16,
-              bottom: MediaQuery.of(context).viewInsets.bottom + 16,
-              top: 16
-            ),
+                left: 16,
+                right: 16,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+                top: 16),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -137,7 +114,7 @@ class AuthScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 TextField(
-                  controller: _emailController,  
+                  controller: _emailController,
                   decoration: InputDecoration(
                     filled: true,
                     fillColor: Color.fromARGB(255, 255, 255, 255),
@@ -180,9 +157,8 @@ class AuthScreen extends StatelessWidget {
                   onPressed: () => _validateAndLogin(context),
                   style: ElevatedButton.styleFrom(
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10.0),
-                      side: BorderSide(color: Colors.red)
-                    ),
+                        borderRadius: BorderRadius.circular(10.0),
+                        side: BorderSide(color: Colors.red)),
                     backgroundColor: const Color.fromRGBO(204, 0, 0, 1.0),
                     padding: EdgeInsets.symmetric(horizontal: 30, vertical: 10),
                   ),
@@ -204,61 +180,42 @@ class AuthScreen extends StatelessWidget {
   }
 
   void _validateAndLogin(BuildContext context) async {
-      final email = _emailController.text.trim();
-      final password = _passwordController.text;
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
 
-      // Show loading indicator
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (BuildContext context) {
-          return const Center(
-            child: CircularProgressIndicator(),
-          );
-        },
-      );
+    // Show loading indicator
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return const Center(
+          child: CircularProgressIndicator(),
+        );
+      },
+    );
 
-      try {
-        final response = await AuthService.login(email, password);
-      
-        // Remove loading indicator
-        Navigator.pop(context);
+    try {
+      final response = await AuthService.login(email, password);
 
-        if (response.success) {
-          // Store auth data
-          await AuthStorageService.saveAuthData(response);
-          
-          // Navigate to main screen
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (context) => const MainScreen()),
-            (Route<dynamic> route) => false,
-          );
-        } else {
-          // Show error dialog
-          showDialog(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              title: const Text("Login Failed"),
-              content: const Text("Invalid credentials. Please try again."),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(ctx).pop(),
-                  child: const Text("OK"),
-                ),
-              ],
-            ),
-          );
-        }
-      } catch (e) {
-        // Remove loading indicator
-        Navigator.pop(context);
-        
+      // Remove loading indicator
+      Navigator.pop(context);
+
+      if (response.success) {
+        // Store auth data
+        await AuthStorageService.saveAuthData(response);
+
+        // Navigate to main screen
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const MainScreen()),
+          (Route<dynamic> route) => false,
+        );
+      } else {
         // Show error dialog
         showDialog(
           context: context,
           builder: (ctx) => AlertDialog(
-            title: const Text("Error"),
-            content: Text("Failed to login: ${e.toString()}"),
+            title: const Text("Login Failed"),
+            content: const Text("Invalid credentials. Please try again."),
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(ctx).pop(),
@@ -268,8 +225,24 @@ class AuthScreen extends StatelessWidget {
           ),
         );
       }
+    } catch (e) {
+      // Remove loading indicator
+      Navigator.pop(context);
+
+      // Show error dialog
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text("Error"),
+          content: Text("Failed to login: ${e.toString()}"),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text("OK"),
+            ),
+          ],
+        ),
+      );
+    }
   }
-
-
-  
 }
