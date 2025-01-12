@@ -1,4 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:secondly/models/user_data.dart';
+import 'package:secondly/service/attendance_service.dart';
+import 'package:secondly/service/auth_service.dart';
 import 'attendance_page.dart';
 import 'timesheets.dart';
 import 'leave.dart';
@@ -17,28 +22,132 @@ class _HomePageState extends State<HomePage> {
   DateTime? clockInTime;
   DateTime? clockOutTime;
   String totalWorkingTime = "--:--:-- hours";
-
   bool isClockedIn = false;
+  bool isLoading = false;
+  String userName = "";
+  String greeting = "";
+  UserData? userData;
 
-  void handleClockInOut() {
-    setState(() {
-      if (!isClockedIn) {
-        clockInTime = DateTime.now();
-        isClockedIn = true;
-      } else {
-        clockOutTime = DateTime.now();
-        isClockedIn = false;
 
-        if (clockInTime != null && clockOutTime != null) {
-          final difference = clockOutTime!.difference(clockInTime!);
-          final hours = difference.inHours;
-          final minutes = difference.inMinutes.remainder(60);
-          final seconds = difference.inSeconds.remainder(60);
-          totalWorkingTime =
-              "${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')} hours";
-        }
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+    _fetchAttendanceData();
+    _updateGreeting();
+  }
+
+
+  void _updateGreeting() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) {
+      greeting = "Good Morning";
+    } else if (hour < 17) {
+      greeting = "Good Afternoon";
+    } else {
+      greeting = "Good Evening";
+    }
+  }
+
+  Future<void> _loadUserData() async {
+    final data = await AuthService.getStoredUserData();
+    if (data != null) {
+      setState(() {
+        userData = data;
+        userName = data.fullName;
+      });
+    }
+  }
+
+  Future<void> _fetchAttendanceData() async {
+    try {
+      final userData = await AuthService.getCurrentUser();
+      if (userData == null) {
+        debugPrint('No user data available');
+        return;
       }
+
+      final today = DateTime.now();
+      final formattedDate = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+
+      final attendanceData = await AttendanceService.getAttendanceData(
+        userData.employeeId,
+        formattedDate,
+      );
+
+      if (attendanceData != null) {
+        setState(() {
+          if (attendanceData['check_in'] != null) {
+            clockInTime = DateTime.parse(attendanceData['check_in']);
+            isClockedIn = true;
+          }
+          if (attendanceData['check_out'] != null) {
+            clockOutTime = DateTime.parse(attendanceData['check_out']);
+            isClockedIn = true;
+          }
+          if (attendanceData['total_working_hours'] != null) {
+            final hours = attendanceData['total_working_hours'].toInt();
+            final minutes = ((attendanceData['total_working_hours'] - hours) * 60).toInt();
+            final seconds = (((attendanceData['total_working_hours'] - hours) * 60 - minutes) * 60).toInt();
+            totalWorkingTime = "${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')} hours";
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching attendance data: $e');
+    }
+  }
+
+  
+
+
+  Future<void> handleClockInOut() async {
+    if (isLoading) return;
+
+    setState(() {
+      isLoading = true;
     });
+
+    try {
+      // Get location
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high
+      );
+
+      List<Placemark> placemarks = await placemarkFromCoordinates(
+        position.latitude,
+        position.longitude,
+      );
+
+      final address = placemarks.first;
+      final addressStr = '${address.street}, ${address.subLocality}, ${address.postalCode}, ${address.country}';
+      final mapsUrl = 'https://www.google.com/maps/@${position.latitude},${position.longitude},18z';
+
+      // Record attendance via API
+      final success = await AttendanceService.recordAttendance(
+        address: addressStr,
+        addressLink: mapsUrl,
+      );
+
+      if (success) {
+        await _fetchAttendanceData();
+      } else {
+        _showErrorSnackBar(context, 'Failed to record attendance');
+      }
+    } catch (e) {
+      debugPrint(e.toString());
+      _showErrorSnackBar(context, 'An error occurred while recording attendance');
+    } finally {
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
+
+  void _showErrorSnackBar(BuildContext context, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 
   void showComingSoonPopup(BuildContext context) {
@@ -244,6 +353,35 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+
+  Widget _buildProfileAvatar() {
+    if (userData == null) {
+      return const CircleAvatar(
+        radius: 20,
+        backgroundColor: Colors.grey,
+        child: Icon(Icons.person, color: Colors.white),
+      );
+    }
+
+    return CircleAvatar(
+      radius: 20,
+      backgroundColor: Colors.grey,
+      child: ClipOval(
+        child: Image(
+          image: NetworkImage(
+            'https://dev.osp.id/ptap-kpi-dev/dist/img/profilepicture/${userData!.employeeId}.png',
+          ),
+          fit: BoxFit.cover,
+          width: 40,
+          height: 40,
+          errorBuilder: (context, error, stackTrace) {
+            return const Icon(Icons.person, color: Colors.white);
+          },
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -258,23 +396,17 @@ class _HomePageState extends State<HomePage> {
               'assets/logolengkapptap.png',
               width: 170,
             ),
-            //  profil
+            // Profile Avatar
             GestureDetector(
               onTap: () {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                      builder: (context) => const ProfileScreen()),
+                    builder: (context) => const ProfileScreen(),
+                  ),
                 );
               },
-              child: const CircleAvatar(
-                radius: 20,
-                backgroundColor: Colors.grey,
-                child: Icon(
-                  Icons.person,
-                  color: Colors.white,
-                ),
-              ),
+              child: _buildProfileAvatar(),
             ),
           ],
         ),
@@ -292,16 +424,16 @@ class _HomePageState extends State<HomePage> {
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
+                      children: [
                         Text(
-                          "Good Morning, Jane!",
-                          style: TextStyle(
+                          "$greeting, $userName!",
+                          style: const TextStyle(
                             fontSize: 30,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        SizedBox(height: 6),
-                        Text(
+                        const SizedBox(height: 6),
+                        const Text(
                           "Let's get to work!",
                           style: TextStyle(
                             fontSize: 18,
@@ -321,17 +453,26 @@ class _HomePageState extends State<HomePage> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: isClockedIn ? Colors.black : Colors.red,
                   minimumSize: const Size(double.infinity, 50),
-                  shape: CircleBorder(),
-                  padding: EdgeInsets.all(80),
+                  shape: const CircleBorder(),
+                  padding: const EdgeInsets.all(80),
                 ),
-                onPressed: handleClockInOut,
-                child: Text(
-                  isClockedIn ? "CLOCK OUT" : "CLOCK IN",
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 34,
-                  ),
-                ),
+                onPressed: isLoading ? null : handleClockInOut,
+                child: isLoading
+                    ? const SizedBox(
+                        height: 24,
+                        width: 24,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : Text(
+                        isClockedIn ? "CLOCK OUT" : "CLOCK IN",
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 34,
+                        ),
+                      ),
               ),
             ),
 
@@ -347,8 +488,8 @@ class _HomePageState extends State<HomePage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: const [
+                    const Row(
+                      children: [
                         Icon(Icons.work, size: 24),
                         SizedBox(width: 8),
                         Text(
@@ -372,10 +513,10 @@ class _HomePageState extends State<HomePage> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          "Clock in: ${clockInTime != null ? "${clockInTime!.hour.toString().padLeft(2, '0')}:${clockInTime!.minute.toString().padLeft(2, '0')}:${clockInTime!.second.toString().padLeft(2, '0')}" : '--:--:--'}",
+                          "Clock in: ${clockInTime != null ? clockInTime!.toLocal().toString().split(' ')[1].split('.')[0] : '--:--:--'}",
                         ),
                         Text(
-                          "Clock out: ${clockOutTime != null ? "${clockOutTime!.hour.toString().padLeft(2, '0')}:${clockOutTime!.minute.toString().padLeft(2, '0')}:${clockOutTime!.second.toString().padLeft(2, '0')}" : '--:--:--'}",
+                          "Clock out: ${clockOutTime != null ? clockOutTime!.toLocal().toString().split(' ')[1].split('.')[0] : '--:--:--'}",
                         ),
                       ],
                     ),

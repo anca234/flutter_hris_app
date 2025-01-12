@@ -31,10 +31,14 @@ class AttendancePageState extends State<AttendancePage> {
   static const int maxRetries = 3;
   static const int locationTimeout = 10; // seconds
 
+  List<Map<String, dynamic>> dailyRecords = [];
+  bool isDailyDataLoading = false;
+
   @override
   void initState() {
     super.initState();
     _fetchAttendanceData();
+    _fetchDailyAttendance(); 
   }
 
 
@@ -263,8 +267,11 @@ class AttendancePageState extends State<AttendancePage> {
       );
 
       if (success) {
-        // Refresh attendance data after successful clock in/out
-        await _fetchAttendanceData();
+        // Refresh both attendance data and daily records
+        await Future.wait([
+          _fetchAttendanceData(),
+          _fetchDailyAttendance(),
+        ]);
       } else {
         _showErrorSnackBar('Failed to record attendance');
       }
@@ -277,6 +284,41 @@ class AttendancePageState extends State<AttendancePage> {
       });
     }
   }
+
+  Future<void> _fetchDailyAttendance() async {
+    setState(() {
+      isDailyDataLoading = true;
+    });
+
+    try {
+      final userData = await AuthService.getCurrentUser();
+      if (userData == null) {
+        debugPrint('No user data available');
+        return;
+      }
+
+      final today = DateTime.now();
+      final formattedDate = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+
+      final dailyData = await AttendanceService.getDailyAttendance(
+        userData.employeeId,
+        formattedDate,
+      );
+
+      if (dailyData != null && dailyData['records'] != null) {
+        setState(() {
+          dailyRecords = List<Map<String, dynamic>>.from(dailyData['records']);
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching daily attendance: $e');
+    } finally {
+      setState(() {
+        isDailyDataLoading = false;
+      });
+    }
+  }
+
 
   /**
    * Component function section 
@@ -477,13 +519,15 @@ class AttendancePageState extends State<AttendancePage> {
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
             ),
-            for (int i = 0; i < 4; i++)
-              DailyReportCard(
-                month: '00',
-                clockIn: '00:00:00',
-                clockOut: i == 2 ? 'Weekend' : '00:00:00',
-                isWeekend: i == 2,
-              ),
+            if (isDailyDataLoading)
+              const Center(child: CircularProgressIndicator())
+            else if (dailyRecords.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(16.0),
+                child: Center(child: Text('No attendance records found')),
+              )
+            else
+              ...dailyRecords.map((record) => DailyReportCard(record: record)),
 
             // Summary Section
             Padding(
@@ -513,67 +557,80 @@ class AttendancePageState extends State<AttendancePage> {
 
 
 class DailyReportCard extends StatelessWidget {
-  final String month;
-  final String clockIn;
-  final String clockOut;
-  final bool isWeekend;
+  final Map<String, dynamic> record;
 
-  DailyReportCard({
-    required this.month,
-    required this.clockIn,
-    required this.clockOut,
-    this.isWeekend = false,
-  });
+  const DailyReportCard({
+    Key? key,
+    required this.record,
+  }) : super(key: key);
+
+  String _formatTime(String? dateTimeString) {
+    if (dateTimeString == null) return '--:--:--';
+    try {
+      final dateTime = DateTime.parse(dateTimeString);
+      return '${dateTime.hour.toString().padLeft(2, '0')}:'
+          '${dateTime.minute.toString().padLeft(2, '0')}:'
+          '${dateTime.second.toString().padLeft(2, '0')}';
+    } catch (e) {
+      return '--:--:--';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final checkInTime = _formatTime(record['check_in']);
+    final checkOutTime = _formatTime(record['check_out']);
+    final checkInLocation = record['check_in_location']?['address'] ?? '';
+    final deviceInfo = record['device_info'] ?? {};
+
     return Container(
-      margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         border: Border.all(color: Colors.grey),
         borderRadius: BorderRadius.circular(5),
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 60,
-            height: 60,
-            color: Colors.black,
-            child: Center(
-              child: Text(
-                month,
-                style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold),
-              ),
-            ),
-          ),
-          SizedBox(width: 16),
-          if (isWeekend)
-            Expanded(
+      child: ExpansionTile(
+        title: Row(
+          children: [
+            Container(
+              width: 60,
+              height: 60,
+              color: Colors.black,
               child: Center(
                 child: Text(
-                  clockOut,
-                  style: TextStyle(
-                      color: Colors.black,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold),
+                  checkInTime.substring(0, 5),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
-            )
-          else
+            ),
+            const SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Clock In: $clockIn',
-                      style: TextStyle(color: Colors.black, fontSize: 12)),
-                  Text('Clock Out: $clockOut',
-                      style: TextStyle(color: Colors.black, fontSize: 12)),
+                  Text('Clock In: $checkInTime'),
+                  Text('Clock Out: $checkOutTime'),
                 ],
               ),
             ),
+          ],
+        ),
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Location: $checkInLocation'),
+                const SizedBox(height: 4),
+                Text('Device: ${deviceInfo['browser'] ?? 'Unknown'} on ${deviceInfo['os'] ?? 'Unknown'}'),
+              ],
+            ),
+          ),
         ],
       ),
     );
