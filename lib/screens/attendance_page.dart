@@ -37,6 +37,8 @@ class AttendancePageState extends State<AttendancePage> {
     _fetchAttendanceData();
   }
 
+
+
     // Function to get location permission and current position
   Future<bool> _handleLocationPermission() async {
     bool serviceEnabled;
@@ -171,6 +173,73 @@ class AttendancePageState extends State<AttendancePage> {
     }
   }
 
+  Future<void> _fetchAttendanceData() async {
+    setState(() {
+      isDataLoading = true;
+    });
+
+    try {
+      final userData = await AuthService.getCurrentUser();
+      if (userData == null) {
+        debugPrint('No user data available');
+        return;
+      }
+
+      final today = DateTime.now();
+      final formattedDate = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+
+      final attendanceData = await AttendanceService.getAttendanceData(
+        userData.employeeId,
+        formattedDate,
+      );
+
+      if (attendanceData != null) {
+        setState(() {
+          // Reset states
+          clockInTime = null;
+          clockOutTime = null;
+          isClockedIn = false;
+
+          if (attendanceData['check_in'] != null) {
+            clockInTime = DateTime.parse(attendanceData['check_in']);
+            
+            // If there's a check_in but no check_out, user is clocked in
+            isClockedIn = true;
+            if (attendanceData['check_out'] != null) {
+              clockOutTime = DateTime.parse(attendanceData['check_out']);
+            } 
+          }
+
+          if (attendanceData['total_working_hours'] != null) {
+            final hours = attendanceData['total_working_hours'].toInt();
+            final minutes = ((attendanceData['total_working_hours'] - hours) * 60).toInt();
+            final seconds = (((attendanceData['total_working_hours'] - hours) * 60 - minutes) * 60).toInt();
+            totalWorkingTime = "${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')} hours";
+          }
+          
+          checkInLocation = attendanceData['check_in_location'];
+          checkOutLocation = attendanceData['check_out_location'];
+        });
+      } else {
+        // Reset all states if no attendance data is found
+        setState(() {
+          clockInTime = null;
+          clockOutTime = null;
+          isClockedIn = false;
+          totalWorkingTime = "--:--:-- hours";
+          checkInLocation = null;
+          checkOutLocation = null;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching attendance data: $e');
+    } finally {
+      setState(() {
+        isDataLoading = false;
+      });
+    }
+  }
+
   Future<void> handleClockInOut() async {
     if (isLoading) return;
 
@@ -205,55 +274,6 @@ class AttendancePageState extends State<AttendancePage> {
     } finally {
       setState(() {
         isLoading = false;
-      });
-    }
-  }
-
-  Future<void> _fetchAttendanceData() async {
-    setState(() {
-      isDataLoading = true;
-    });
-
-    try {
-      final userData = await AuthService.getCurrentUser();
-      if (userData == null) {
-        debugPrint('No user data available');
-        return;
-      }
-
-      final today = DateTime.now();
-      final formattedDate = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
-
-      final attendanceData = await AttendanceService.getAttendanceData(
-        userData.employeeId,
-        formattedDate,
-      );
-
-      if (attendanceData != null) {
-        setState(() {
-          if (attendanceData['check_in'] != null) {
-            clockInTime = DateTime.parse(attendanceData['check_in']);
-            isClockedIn = true;
-          }
-          if (attendanceData['check_out'] != null) {
-            clockOutTime = DateTime.parse(attendanceData['check_out']);
-            isClockedIn = false;
-          }
-          if (attendanceData['total_working_hours'] != null) {
-            final hours = attendanceData['total_working_hours'].toInt();
-            final minutes = ((attendanceData['total_working_hours'] - hours) * 60).toInt();
-            final seconds = (((attendanceData['total_working_hours'] - hours) * 60 - minutes) * 60).toInt();
-            totalWorkingTime = "${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')} hours";
-          }
-          checkInLocation = attendanceData['check_in_location'];
-          checkOutLocation = attendanceData['check_out_location'];
-        });
-      }
-    } catch (e) {
-      debugPrint('Error fetching attendance data: $e');
-    } finally {
-      setState(() {
-        isDataLoading = false;
       });
     }
   }
@@ -293,6 +313,59 @@ class AttendancePageState extends State<AttendancePage> {
       },
     );
   }
+
+
+  Widget _buildClockButton() {
+    final bool canClockInOut = !isLoading && !isDataLoading;
+    
+    // Determine button color and text
+    final Color buttonColor = isClockedIn ? Colors.black : Colors.red;
+    final String buttonText = isClockedIn ? "Clock Out" : "Clock In";
+    final String loadingText = isClockedIn ? "Processing Clock Out..." : "Processing Clock In...";
+
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: buttonColor,
+          minimumSize: const Size(double.infinity, 50),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+        onPressed: canClockInOut ? handleClockInOut : null,
+        child: isLoading
+            ? Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 2,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    loadingText,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                    ),
+                  ),
+                ],
+              )
+            : Text(
+                buttonText,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 26,
+                ),
+              ),
+      ),
+    );
+  }
   
 
   @override
@@ -321,50 +394,9 @@ class AttendancePageState extends State<AttendancePage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Clock In Button Section
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: isClockedIn ? Colors.black : Colors.red,
-                  minimumSize: const Size(double.infinity, 50),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                onPressed: isLoading ? null : handleClockInOut,
-                child: isLoading
-                    ? const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                              color: Colors.white,
-                              strokeWidth: 2,
-                            ),
-                          ),
-                          SizedBox(width: 12),
-                          Text(
-                            "Processing...",
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
-                            ),
-                          ),
-                        ],
-                      )
-                    : Text(
-                        isClockedIn ? "Clock Out" : "Clock In",
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 26,
-                        ),
-                      ),
-              ),
-            ),
+            _buildClockButton(),
 
-            // Total Working Hour Section
+            
             // Total Working Hours Section
             Padding(
               padding: const EdgeInsets.all(16.0),
@@ -477,6 +509,8 @@ class AttendancePageState extends State<AttendancePage> {
     );
   }
 }
+
+
 
 class DailyReportCard extends StatelessWidget {
   final String month;
