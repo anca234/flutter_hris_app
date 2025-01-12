@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:secondly/service/attendance_service.dart';
+import 'package:secondly/service/auth_service.dart';
 
 class AttendancePage extends StatefulWidget {
   const AttendancePage({super.key});
@@ -16,11 +19,23 @@ class AttendancePageState extends State<AttendancePage> {
   String totalWorkingTime = "--:--:-- hours";
   bool isClockedIn = false;
   bool isLoading = false;
+  bool isDataLoading = false;
   
   // Location related variables
   Position? currentPosition;
   String? currentAddress;
   String? googleMapsUrl;
+  String? checkInLocation;
+  String? checkOutLocation;
+
+  static const int maxRetries = 3;
+  static const int locationTimeout = 10; // seconds
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchAttendanceData();
+  }
 
     // Function to get location permission and current position
   Future<bool> _handleLocationPermission() async {
@@ -50,55 +65,112 @@ class AttendancePageState extends State<AttendancePage> {
     return true;
   }
 
-  void _showErrorSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message))
-    );
-  }
-
-  // Function to get current position
+  // Enhanced getCurrentPosition with retries
   Future<void> _getCurrentPosition() async {
     final hasPermission = await _handleLocationPermission();
     if (!hasPermission) return;
 
-    try {
-      Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high
-      );
-      setState(() {
-        currentPosition = position;
-        googleMapsUrl = 'https://www.google.com/maps/@${position.latitude},${position.longitude},18z';
-      });
-      
-      await _getAddressFromLatLng(position);
-    } catch (e) {
-      debugPrint(e.toString());
-      _showErrorSnackBar('Failed to get current location');
+    for (int i = 0; i < maxRetries; i++) {
+      try {
+        Position? position = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: locationTimeout),
+        ).timeout(
+          Duration(seconds: locationTimeout),
+          onTimeout: () {
+            throw TimeoutException('Location request timed out');
+          },
+        );
+
+        setState(() {
+          currentPosition = position;
+          googleMapsUrl = 'https://www.google.com/maps/@${position.latitude},${position.longitude},18z';
+        });
+        
+        await _getAddressFromLatLng(position);
+        return; // Success - exit the retry loop
+        
+      } catch (e) {
+        debugPrint('Location attempt ${i + 1} failed: $e');
+        
+        if (e is TimeoutException) {
+          _showErrorSnackBar('Location request timed out. Retrying...');
+        } else if (e.toString().contains('LocationServiceDisabledException')) {
+          _showErrorSnackBar('Location services are disabled');
+          return;
+        } else if (e.toString().contains('PermissionDeniedException')) {
+          _showErrorSnackBar('Location permission denied');
+          return;
+        }
+
+        // If this was the last retry
+        if (i == maxRetries - 1) {
+          _showErrorDialog(
+            'Location Error',
+            'Unable to get your location after several attempts. Please ensure you have:\n\n'
+            '• Good GPS signal\n'
+            '• Internet connectivity\n'
+            '• Location services enabled\n\n'
+            'Would you like to try again?'
+          );
+          return;
+        }
+        
+        // Wait before retrying
+        await Future.delayed(Duration(seconds: 2));
+      }
     }
   }
 
-  // Function to get address from coordinates
+  // Address lookup with retrie
   Future<void> _getAddressFromLatLng(Position position) async {
-    try {
-      List<Placemark> placemarks = await placemarkFromCoordinates(
-        position.latitude,
-        position.longitude,
-      );
+    for (int i = 0; i < maxRetries; i++) {
+      try {
+        List<Placemark> placemarks = await placemarkFromCoordinates(
+          position.latitude,
+          position.longitude,
+        ).timeout(
+          Duration(seconds: locationTimeout),
+          onTimeout: () {
+            throw TimeoutException('Address lookup timed out');
+          },
+        );
 
-      Placemark place = placemarks[0];
-      setState(() {
-        currentAddress = 
-          '${place.street}, ${place.subLocality}, '
-          '${place.subAdministrativeArea}, ${place.postalCode}, '
-          '${place.country}';
-      });
-    } catch (e) {
-      debugPrint(e.toString());
-      _showErrorSnackBar('Failed to get address');
+        if (placemarks.isEmpty) {
+          throw Exception('No address found');
+        }
+
+        Placemark place = placemarks[0];
+        setState(() {
+          currentAddress = 
+            '${place.street ?? ''}, ${place.subLocality ?? ''}, '
+            '${place.subAdministrativeArea ?? ''}, ${place.postalCode ?? ''}, '
+            '${place.country ?? ''}'
+                .replaceAll(RegExp(r', ,'), ',')  // Remove empty components
+                .replaceAll(RegExp(r',+'), ',')   // Remove multiple commas
+                .replaceAll(RegExp(r'^\s*,\s*|\s*,\s*$'), '')  // Remove leading/trailing commas
+                .trim();
+        });
+        return; // Success - exit the retry loop
+
+      } catch (e) {
+        debugPrint('Address lookup attempt ${i + 1} failed: $e');
+        
+        // If this was the last retry
+        if (i == maxRetries - 1) {
+          setState(() {
+            currentAddress = 'Location found but address lookup failed';
+          });
+          _showErrorSnackBar('Could not get street address');
+          return;
+        }
+        
+        // Wait before retrying
+        await Future.delayed(Duration(seconds: 1));
+      }
     }
   }
 
-  // Enhanced clock in/out function with API integration
   Future<void> handleClockInOut() async {
     if (isLoading) return;
 
@@ -122,24 +194,8 @@ class AttendancePageState extends State<AttendancePage> {
       );
 
       if (success) {
-        setState(() {
-          if (!isClockedIn) {
-            clockInTime = DateTime.now();
-            isClockedIn = true;
-          } else {
-            clockOutTime = DateTime.now();
-            isClockedIn = false;
-
-            if (clockInTime != null && clockOutTime != null) {
-              final difference = clockOutTime!.difference(clockInTime!);
-              final hours = difference.inHours;
-              final minutes = difference.inMinutes.remainder(60);
-              final seconds = difference.inSeconds.remainder(60);
-              totalWorkingTime =
-                  "${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')} hours";
-            }
-          }
-        });
+        // Refresh attendance data after successful clock in/out
+        await _fetchAttendanceData();
       } else {
         _showErrorSnackBar('Failed to record attendance');
       }
@@ -153,7 +209,90 @@ class AttendancePageState extends State<AttendancePage> {
     }
   }
 
+  Future<void> _fetchAttendanceData() async {
+    setState(() {
+      isDataLoading = true;
+    });
 
+    try {
+      final userData = await AuthService.getCurrentUser();
+      if (userData == null) {
+        debugPrint('No user data available');
+        return;
+      }
+
+      final today = DateTime.now();
+      final formattedDate = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+
+      final attendanceData = await AttendanceService.getAttendanceData(
+        userData.employeeId,
+        formattedDate,
+      );
+
+      if (attendanceData != null) {
+        setState(() {
+          if (attendanceData['check_in'] != null) {
+            clockInTime = DateTime.parse(attendanceData['check_in']);
+            isClockedIn = true;
+          }
+          if (attendanceData['check_out'] != null) {
+            clockOutTime = DateTime.parse(attendanceData['check_out']);
+            isClockedIn = false;
+          }
+          if (attendanceData['total_working_hours'] != null) {
+            final hours = attendanceData['total_working_hours'].toInt();
+            final minutes = ((attendanceData['total_working_hours'] - hours) * 60).toInt();
+            final seconds = (((attendanceData['total_working_hours'] - hours) * 60 - minutes) * 60).toInt();
+            totalWorkingTime = "${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')} hours";
+          }
+          checkInLocation = attendanceData['check_in_location'];
+          checkOutLocation = attendanceData['check_out_location'];
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching attendance data: $e');
+    } finally {
+      setState(() {
+        isDataLoading = false;
+      });
+    }
+  }
+
+  /**
+   * Component function section 
+   */
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message))
+    );
+  }
+
+  void _showErrorDialog(String title, String message) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text(title),
+          content: Text(message),
+          actions: <Widget>[
+            TextButton(
+              child: Text('Cancel'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            TextButton(
+              child: Text('Retry'),
+              onPressed: () {
+                Navigator.of(context).pop();
+                _getCurrentPosition();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
   
 
   @override
@@ -181,7 +320,7 @@ class AttendancePageState extends State<AttendancePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Clock In Section
+            // Clock In Button Section
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: ElevatedButton(
@@ -192,18 +331,41 @@ class AttendancePageState extends State<AttendancePage> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                onPressed: handleClockInOut,
-                child: Text(
-                  isClockedIn ? "Clock Out" : "Clock Ins",
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 26,
-                  ),
-                ),
+                onPressed: isLoading ? null : handleClockInOut,
+                child: isLoading
+                    ? const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          ),
+                          SizedBox(width: 12),
+                          Text(
+                            "Processing...",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                            ),
+                          ),
+                        ],
+                      )
+                    : Text(
+                        isClockedIn ? "Clock Out" : "Clock In",
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 26,
+                        ),
+                      ),
               ),
             ),
 
             // Total Working Hour Section
+            // Total Working Hours Section
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: Container(
@@ -212,43 +374,66 @@ class AttendancePageState extends State<AttendancePage> {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: const [
-                        Icon(Icons.work, size: 24),
-                        SizedBox(width: 8),
-                        Text(
-                          "Total working hour",
-                          style: TextStyle(
-                              fontSize: 18, fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      totalWorkingTime,
-                      style: const TextStyle(
-                        color: Colors.red,
-                        fontSize: 23,
-                        fontWeight: FontWeight.bold,
+                child: isDataLoading
+                    ? const Center(
+                        child: CircularProgressIndicator(),
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(Icons.work, size: 24),
+                              SizedBox(width: 8),
+                              Text(
+                                "Total working hour",
+                                style: TextStyle(
+                                    fontSize: 18, fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            totalWorkingTime,
+                            style: const TextStyle(
+                              color: Colors.red,
+                              fontSize: 23,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const Divider(),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    "Clock in: ${clockInTime != null ? clockInTime!.toLocal().toString().split(' ')[1].split('.')[0] : '--:--:--'}",
+                                  ),
+                                  Text(
+                                    "Clock out: ${clockOutTime != null ? clockOutTime!.toLocal().toString().split(' ')[1].split('.')[0] : '--:--:--'}",
+                                  ),
+                                ],
+                              ),
+                              if (checkInLocation != null) ...[
+                                const SizedBox(height: 8),
+                                Text(
+                                  "Check-in location: $checkInLocation",
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                              ],
+                              if (checkOutLocation != null) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  "Check-out location: $checkOutLocation",
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ],
                       ),
-                    ),
-                    const Divider(),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          "Clock in: ${clockInTime != null ? clockInTime!.toLocal().toString().split(' ')[1].split('.')[0] : '--:--:--'}",
-                        ),
-                        Text(
-                          "Clock out: ${clockOutTime != null ? clockOutTime!.toLocal().toString().split(' ')[1].split('.')[0] : '--:--:--'}",
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
               ),
             ),
 

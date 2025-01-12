@@ -9,6 +9,41 @@ import '../service/auth_service.dart';
 
 class AttendanceService {
   static final String baseUrl = ApiConfig.baseUrl;
+
+
+  static Future<Map<String, dynamic>?> getAttendanceData(int employeeId, String date) async {
+    try {
+      final token = AuthService.authToken;
+      if (token == null) {
+        debugPrint('No auth token available');
+        return null;
+      }
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/api_mobile.php?operation=getAttendance'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: json.encode({
+          'employee_id': employeeId,
+          'date': date,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final jsonResponse = json.decode(response.body);
+        if (jsonResponse['success'] == true) {
+          return jsonResponse['data'];
+        }
+      }
+      debugPrint('Failed to fetch attendance: ${response.body}');
+      return null;
+    } catch (e) {
+      debugPrint('Error fetching attendance: $e');
+      return null;
+    }
+  }
   
   // Function to get device info
   static Future<Map<String, String>> _getDeviceInfo() async {
