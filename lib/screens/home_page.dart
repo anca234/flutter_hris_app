@@ -105,12 +105,13 @@ class _HomePageState extends State<HomePage> {
         setState(() {
           if (attendanceData['check_in'] != null) {
             clockInTime = DateTime.parse(attendanceData['check_in']);
-            isClockedIn = true;
+            isClockedIn = attendanceData['check_out'] == null;
           }
+
           if (attendanceData['check_out'] != null) {
             clockOutTime = DateTime.parse(attendanceData['check_out']);
-            isClockedIn = true;
           }
+
           if (attendanceData['total_working_hours'] != null) {
             final hours = attendanceData['total_working_hours'].toInt();
             final minutes =
