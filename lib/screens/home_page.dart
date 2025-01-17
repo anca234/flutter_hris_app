@@ -9,6 +9,7 @@ import 'timesheets.dart';
 import 'leave.dart';
 import 'asset.dart';
 import 'profile.dart';
+import 'dart:async';
 //import 'more.dart';
 
 class HomePage extends StatefulWidget {
@@ -21,13 +22,15 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   DateTime? clockInTime;
   DateTime? clockOutTime;
-  String totalWorkingTime = "--:--:-- hours";
+  String totalWorkingTime = "--:--:--";
   bool isClockedIn = false;
   bool isLoading = false;
   String userName = "";
   String greeting = "";
   UserData? userData;
 
+  Timer? _timer;
+  Duration _duration = Duration.zero;
 
   @override
   void initState() {
@@ -37,6 +40,28 @@ class _HomePageState extends State<HomePage> {
     _updateGreeting();
   }
 
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  void startStopwatch() {
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      setState(() {
+        _duration = Duration(seconds: _duration.inSeconds + 1);
+        final hours = _duration.inHours;
+        final minutes = _duration.inMinutes.remainder(60);
+        final seconds = _duration.inSeconds.remainder(60);
+        totalWorkingTime =
+            "${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}";
+      });
+    });
+  }
+
+  void stopStopwatch() {
+    _timer?.cancel();
+    _timer = null;
+  }
 
   void _updateGreeting() {
     final hour = DateTime.now().hour;
@@ -68,7 +93,8 @@ class _HomePageState extends State<HomePage> {
       }
 
       final today = DateTime.now();
-      final formattedDate = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+      final formattedDate =
+          '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
 
       final attendanceData = await AttendanceService.getAttendanceData(
         userData.employeeId,
@@ -87,9 +113,15 @@ class _HomePageState extends State<HomePage> {
           }
           if (attendanceData['total_working_hours'] != null) {
             final hours = attendanceData['total_working_hours'].toInt();
-            final minutes = ((attendanceData['total_working_hours'] - hours) * 60).toInt();
-            final seconds = (((attendanceData['total_working_hours'] - hours) * 60 - minutes) * 60).toInt();
-            totalWorkingTime = "${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')} hours";
+            final minutes =
+                ((attendanceData['total_working_hours'] - hours) * 60).toInt();
+            final seconds =
+                (((attendanceData['total_working_hours'] - hours) * 60 -
+                            minutes) *
+                        60)
+                    .toInt();
+            totalWorkingTime =
+                "${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')} hours";
           }
         });
       }
@@ -97,9 +129,6 @@ class _HomePageState extends State<HomePage> {
       debugPrint('Error fetching attendance data: $e');
     }
   }
-
-  
-
 
   Future<void> handleClockInOut() async {
     if (isLoading) return;
@@ -109,34 +138,77 @@ class _HomePageState extends State<HomePage> {
     });
 
     try {
-      // Get location
-      Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high
-      );
+      if (!isClockedIn) {
+        // Clock In
+        clockInTime = DateTime.now();
+        isClockedIn = true;
+        _duration = Duration.zero; // Reset stopwatch
+        totalWorkingTime = "00:00:00";
+        startStopwatch();
 
-      List<Placemark> placemarks = await placemarkFromCoordinates(
-        position.latitude,
-        position.longitude,
-      );
+        // Get location for Clock In
+        Position position = await Geolocator.getCurrentPosition(
+            desiredAccuracy: LocationAccuracy.high);
 
-      final address = placemarks.first;
-      final addressStr = '${address.street}, ${address.subLocality}, ${address.postalCode}, ${address.country}';
-      final mapsUrl = 'https://www.google.com/maps/@${position.latitude},${position.longitude},18z';
+        List<Placemark> placemarks = await placemarkFromCoordinates(
+          position.latitude,
+          position.longitude,
+        );
 
-      // Record attendance via API
-      final success = await AttendanceService.recordAttendance(
-        address: addressStr,
-        addressLink: mapsUrl,
-      );
+        final address = placemarks.first;
+        final addressStr =
+            '${address.street}, ${address.subLocality}, ${address.postalCode}, ${address.country}';
+        final mapsUrl =
+            'https://www.google.com/maps/@${position.latitude},${position.longitude},18z';
 
-      if (success) {
-        await _fetchAttendanceData();
+        // Record Clock In attendance via API
+        final success = await AttendanceService.recordAttendance(
+          address: addressStr,
+          addressLink: mapsUrl,
+        );
+
+        if (success) {
+          await _fetchAttendanceData();
+        } else {
+          _showErrorSnackBar(context, 'Failed to record Clock In attendance');
+        }
       } else {
-        _showErrorSnackBar(context, 'Failed to record attendance');
+        // Clock Out
+        clockOutTime = DateTime.now();
+        isClockedIn = false;
+        stopStopwatch();
+
+        // Get location for Clock Out
+        Position position = await Geolocator.getCurrentPosition(
+            desiredAccuracy: LocationAccuracy.high);
+
+        List<Placemark> placemarks = await placemarkFromCoordinates(
+          position.latitude,
+          position.longitude,
+        );
+
+        final address = placemarks.first;
+        final addressStr =
+            '${address.street}, ${address.subLocality}, ${address.postalCode}, ${address.country}';
+        final mapsUrl =
+            'https://www.google.com/maps/@${position.latitude},${position.longitude},18z';
+
+        // Record Clock Out attendance via API
+        final success = await AttendanceService.recordAttendance(
+          address: addressStr,
+          addressLink: mapsUrl,
+        );
+
+        if (success) {
+          await _fetchAttendanceData();
+        } else {
+          _showErrorSnackBar(context, 'Failed to record Clock Out attendance');
+        }
       }
     } catch (e) {
       debugPrint(e.toString());
-      _showErrorSnackBar(context, 'An error occurred while recording attendance');
+      _showErrorSnackBar(
+          context, 'An error occurred while recording attendance');
     } finally {
       setState(() {
         isLoading = false;
@@ -353,7 +425,6 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-
   Widget _buildProfileAvatar() {
     if (userData == null) {
       return const CircleAvatar(
@@ -384,6 +455,8 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    final Color stopwatchColor =
+        _duration.inHours >= 9 ? Colors.green : Colors.red;
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.white,
@@ -449,82 +522,79 @@ class _HomePageState extends State<HomePage> {
             // Clock In Section
             Padding(
               padding: const EdgeInsets.all(16.0),
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: isClockedIn ? Colors.black : Colors.red,
-                  minimumSize: const Size(double.infinity, 50),
-                  shape: const CircleBorder(),
-                  padding: const EdgeInsets.all(80),
-                ),
-                onPressed: isLoading ? null : handleClockInOut,
-                child: isLoading
-                    ? const SizedBox(
-                        height: 24,
-                        width: 24,
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 2,
-                        ),
-                      )
-                    : Text(
-                        isClockedIn ? "CLOCK OUT" : "CLOCK IN",
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 34,
-                        ),
-                      ),
-              ),
-            ),
-
-            // Total Working Hour Section
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Container(
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: isClockedIn
+                          ? const Color.fromARGB(255, 0, 0, 0)
+                          : Colors.red,
+                      shape: const CircleBorder(),
+                      padding: const EdgeInsets.all(80),
+                    ),
+                    onPressed: handleClockInOut,
+                    child: Text(
+                      isClockedIn ? "CLOCK OUT" : "CLOCK IN",
+                      style: const TextStyle(fontSize: 24, color: Colors.white),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Container(
+                    padding: const EdgeInsets.all(16.0),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment
+                          .center, // Semua elemen berada di tengah secara horizontal
                       children: [
-                        Icon(Icons.work, size: 24),
-                        SizedBox(width: 8),
+                        Row(
+                          mainAxisAlignment:
+                              MainAxisAlignment.center, // Teks berada di tengah
+                          children: const [
+                            Icon(Icons.timer, size: 24),
+                            SizedBox(width: 8),
+                            Text(
+                              "Total working hour",
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
                         Text(
-                          "Total working hour",
+                          totalWorkingTime,
                           style: TextStyle(
-                              fontSize: 25, fontWeight: FontWeight.bold),
+                            color: stopwatchColor, // Warna stopwatch dinamis
+                            fontSize: 50,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center, // Timer berada di tengah
+                        ),
+                        const Divider(),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              "Clock in: ${clockInTime != null ? "${clockInTime!.hour.toString().padLeft(2, '0')}:${clockInTime!.minute.toString().padLeft(2, '0')}:${clockInTime!.second.toString().padLeft(2, '0')}" : '--:--:--'}",
+                              style: const TextStyle(fontSize: 16),
+                            ),
+                            Text(
+                              "Clock out: ${clockOutTime != null ? "${clockOutTime!.hour.toString().padLeft(2, '0')}:${clockOutTime!.minute.toString().padLeft(2, '0')}:${clockOutTime!.second.toString().padLeft(2, '0')}" : '--:--:--'}",
+                              style: const TextStyle(fontSize: 16),
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      totalWorkingTime,
-                      style: const TextStyle(
-                        color: Colors.red,
-                        fontSize: 23,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const Divider(),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          "Clock in: ${clockInTime != null ? clockInTime!.toLocal().toString().split(' ')[1].split('.')[0] : '--:--:--'}",
-                        ),
-                        Text(
-                          "Clock out: ${clockOutTime != null ? clockOutTime!.toLocal().toString().split(' ')[1].split('.')[0] : '--:--:--'}",
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
-
             // Options Section
             Padding(
               padding: const EdgeInsets.all(16.0),

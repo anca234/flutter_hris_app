@@ -1,16 +1,18 @@
 import 'dart:io';
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:device_info_plus/device_info_plus.dart';
+/*import 'package:device_info_plus/device_info_plus.dart';*/
 import '../config/api_config.dart';
 import '../service/auth_service.dart';
 
 class AttendanceService {
   static final String baseUrl = ApiConfig.baseUrl;
 
-  static Future<Map<String, dynamic>?> getDailyAttendance(int employeeId, String date) async {
+  static Future<Map<String, dynamic>?> getDailyAttendance(
+      int employeeId, String date) async {
     try {
       final token = AuthService.authToken;
       if (token == null) {
@@ -44,8 +46,8 @@ class AttendanceService {
     }
   }
 
-
-  static Future<Map<String, dynamic>?> getAttendanceData(int employeeId, String date) async {
+  static Future<Map<String, dynamic>?> getAttendanceData(
+      int employeeId, String date) async {
     try {
       final token = AuthService.authToken;
       if (token == null) {
@@ -78,7 +80,7 @@ class AttendanceService {
       return null;
     }
   }
-  
+
   // Function to get device info
   static Future<Map<String, String>> _getDeviceInfo() async {
     DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
@@ -125,9 +127,10 @@ class AttendanceService {
       }
 
       final deviceInfo = await _getDeviceInfo();
-      
+
       final response = await http.post(
-        Uri.parse('$baseUrl/api_mobile.php?operation=recordAttendance'),  // Adjust endpoint as needed
+        Uri.parse(
+            '$baseUrl/api_mobile.php?operation=recordAttendance'), // Adjust endpoint as needed
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',

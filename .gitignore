@@ -117,6 +117,5 @@ web/manifest.json
 *.iml
 *.iws
 .DS_Store
-/android
-/ios
-/windows
+
+
