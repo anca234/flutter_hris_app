@@ -89,95 +89,112 @@ class AuthScreen extends StatelessWidget {
   }
 
   void _showSignInBottomSheet(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true, // Agar modal menyesuaikan konten
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      backgroundColor: Color.fromARGB(255, 217, 217, 217),
-      builder: (BuildContext context) {
-        return SingleChildScrollView(
-          child: Padding(
-            padding: EdgeInsets.only(
+  bool _isPasswordVisible = false;
+
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true, // Agar modal menyesuaikan konten
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+    ),
+    backgroundColor: Color.fromARGB(255, 217, 217, 217),
+    builder: (BuildContext context) {
+      return StatefulBuilder(
+        builder: (context, setState) {
+          return SingleChildScrollView(
+            child: Padding(
+              padding: EdgeInsets.only(
                 left: 16,
                 right: 16,
                 bottom: MediaQuery.of(context).viewInsets.bottom + 16,
-                top: 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const SizedBox(height: 16),
-                const Text(
-                  "Sign In",
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _emailController,
-                  decoration: InputDecoration(
-                    filled: true,
-                    fillColor: Color.fromARGB(255, 255, 255, 255),
-                    border: OutlineInputBorder(),
-                    hintText: "Enter your e-mail",
-                    prefixIcon: Icon(Icons.email),
+                top: 16,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(height: 16),
+                  const Text(
+                    "Sign In",
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                   ),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: _passwordController,
-                  decoration: InputDecoration(
-                    filled: true,
-                    fillColor: Color.fromARGB(255, 255, 255, 255),
-                    border: OutlineInputBorder(),
-                    hintText: "Enter your password",
-                    prefixIcon: Icon(Icons.lock),
-                    suffixIcon: Icon(Icons.visibility_off),
-                  ),
-                  obscureText: true,
-                ),
-                const SizedBox(height: 8), // Memberikan jarak kecil
-                GestureDetector(
-                  onTap: () {
-                    showComingSoonPopup(context);
-                    print("Forgot Password tapped!");
-                  },
-                  child: const Text(
-                    "Forgot Password?",
-                    style: TextStyle(
-                      color: Colors.red, // Warna teks merah
-                      decoration: TextDecoration.underline, // Garis bawah
-                      fontSize: 16, // Ukuran font opsional
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _emailController,
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: Color.fromARGB(255, 255, 255, 255),
+                      border: OutlineInputBorder(),
+                      hintText: "Enter your e-mail",
+                      prefixIcon: Icon(Icons.email),
                     ),
                   ),
-                ),
-
-                const SizedBox(height: 20),
-                ElevatedButton(
-                  onPressed: () => _validateAndLogin(context),
-                  style: ElevatedButton.styleFrom(
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10.0),
-                        side: BorderSide(color: Colors.red)),
-                    backgroundColor: const Color.fromRGBO(204, 0, 0, 1.0),
-                    padding: EdgeInsets.symmetric(horizontal: 30, vertical: 10),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _passwordController,
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: Color.fromARGB(255, 255, 255, 255),
+                      border: OutlineInputBorder(),
+                      hintText: "Enter your password",
+                      prefixIcon: Icon(Icons.lock),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _isPasswordVisible
+                              ? Icons.visibility
+                              : Icons.visibility_off,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _isPasswordVisible = !_isPasswordVisible;
+                          });
+                        },
+                      ),
+                    ),
+                    obscureText: !_isPasswordVisible,
                   ),
-                  child: const Text(
-                    "Login",
-                    style: TextStyle(
-                      color: Color.fromARGB(255, 255, 255, 255),
-                      fontSize: 22,
+                  const SizedBox(height: 8),
+                  GestureDetector(
+                    onTap: () {
+                      showComingSoonPopup(context);
+                    },
+                    child: const Text(
+                      "Forgot Password?",
+                      style: TextStyle(
+                        color: Colors.red,
+                        decoration: TextDecoration.underline,
+                        fontSize: 16,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 16),
-              ],
+                  const SizedBox(height: 20),
+                  ElevatedButton(
+                    onPressed: () => _validateAndLogin(context),
+                    style: ElevatedButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10.0),
+                          side: BorderSide(color: Colors.red)),
+                      backgroundColor: const Color.fromRGBO(204, 0, 0, 1.0),
+                      padding: EdgeInsets.symmetric(horizontal: 30, vertical: 10),
+                    ),
+                    child: const Text(
+                      "Login",
+                      style: TextStyle(
+                        color: Color.fromARGB(255, 255, 255, 255),
+                        fontSize: 22,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+              ),
             ),
-          ),
-        );
-      },
-    );
-  }
+          );
+        },
+      );
+    },
+  );
+}
+
 
   void _validateAndLogin(BuildContext context) async {
     final email = _emailController.text.trim();
