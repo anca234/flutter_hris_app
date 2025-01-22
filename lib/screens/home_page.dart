@@ -10,6 +10,7 @@ import 'leave.dart';
 import 'asset.dart';
 import 'profile.dart';
 import 'dart:async';
+import 'feedback.dart';
 //import 'more.dart';
 
 class HomePage extends StatefulWidget {
@@ -122,7 +123,7 @@ class _HomePageState extends State<HomePage> {
                         60)
                     .toInt();
             totalWorkingTime =
-                "${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')} hours";
+                "${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}";
           }
         });
       }
@@ -232,7 +233,11 @@ class _HomePageState extends State<HomePage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text("Tutup"),
+            child: const Text(
+              "Tutup",
+              style:
+                  TextStyle(color: Color.fromARGB(255, 0, 0, 0), fontSize: 14),
+            ),
           ),
         ],
       ),
@@ -555,7 +560,7 @@ class _HomePageState extends State<HomePage> {
                           mainAxisAlignment:
                               MainAxisAlignment.center, // Teks berada di tengah
                           children: const [
-                            Icon(Icons.timer, size: 24),
+                            Icon(Icons.work, size: 24),
                             SizedBox(width: 8),
                             Text(
                               "Total working hour",
@@ -596,6 +601,7 @@ class _HomePageState extends State<HomePage> {
                 ],
               ),
             ),
+
             // Options Section
             Padding(
               padding: const EdgeInsets.all(16.0),
@@ -611,6 +617,47 @@ class _HomePageState extends State<HomePage> {
                 itemBuilder: (context, index) {
                   return _buildOption(context, index);
                 },
+              ),
+            ),
+
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 4,
+                  mainAxisSpacing: 16,
+                  crossAxisSpacing: 16,
+                ),
+                itemCount: 8,
+                itemBuilder: (context, index) {
+                  return _buildOption(context, index);
+                },
+              ),
+            ),
+
+// ElevatedButton yang ada di tengah layar
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16.0),
+                child: ElevatedButton(
+                  onPressed: () {
+                    // Ganti dengan route yang sesuai untuk feedback screen
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => FeedbackScreen()),
+                    );
+                  },
+                  child: const Text(
+                    'Go to Feedback screen',
+                    style: TextStyle(
+                      color: Color.fromARGB(255, 0, 0, 0),
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
               ),
             ),
 

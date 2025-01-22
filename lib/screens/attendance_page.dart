@@ -16,11 +16,13 @@ class AttendancePage extends StatefulWidget {
 class AttendancePageState extends State<AttendancePage> {
   DateTime? clockInTime;
   DateTime? clockOutTime;
-  String totalWorkingTime = "--:--:-- hours";
+  String totalWorkingTime = "--:--:--";
   bool isClockedIn = false;
   bool isLoading = false;
   bool isDataLoading = false;
-  
+  Timer? stopwatchTimer;
+  Duration elapsedTime = Duration.zero;
+
   // Location related variables
   Position? currentPosition;
   String? currentAddress;
@@ -38,19 +40,43 @@ class AttendancePageState extends State<AttendancePage> {
   void initState() {
     super.initState();
     _fetchAttendanceData();
-    _fetchDailyAttendance(); 
+    _fetchDailyAttendance();
   }
 
+  void _startStopwatch() {
+    stopwatchTimer?.cancel();
+    setState(() {
+      elapsedTime = Duration.zero;
+    });
+    stopwatchTimer = Timer.periodic(Duration(seconds: 1), (timer) {
+      setState(() {
+        elapsedTime = Duration(seconds: elapsedTime.inSeconds + 1);
+        totalWorkingTime = _formatDuration(elapsedTime);
+      });
+    });
+  }
 
+  void _stopStopwatch() {
+    stopwatchTimer?.cancel();
+  }
 
-    // Function to get location permission and current position
+  String _formatDuration(Duration duration) {
+    String twoDigits(int n) => n.toString().padLeft(2, "0");
+    String hours = twoDigits(duration.inHours);
+    String minutes = twoDigits(duration.inMinutes.remainder(60));
+    String seconds = twoDigits(duration.inSeconds.remainder(60));
+    return "$hours:$minutes:$seconds hours";
+  }
+
+  // Function to get location permission and current position
   Future<bool> _handleLocationPermission() async {
     bool serviceEnabled;
     LocationPermission permission;
 
     serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
-      _showErrorSnackBar('Location services are disabled. Please enable the services');
+      _showErrorSnackBar(
+          'Location services are disabled. Please enable the services');
       return false;
     }
 
@@ -90,15 +116,15 @@ class AttendancePageState extends State<AttendancePage> {
 
         setState(() {
           currentPosition = position;
-          googleMapsUrl = 'https://www.google.com/maps/@${position.latitude},${position.longitude},18z';
+          googleMapsUrl =
+              'https://www.google.com/maps/@${position.latitude},${position.longitude},18z';
         });
-        
+
         await _getAddressFromLatLng(position);
         return; // Success - exit the retry loop
-        
       } catch (e) {
         debugPrint('Location attempt ${i + 1} failed: $e');
-        
+
         if (e is TimeoutException) {
           _showErrorSnackBar('Location request timed out. Retrying...');
         } else if (e.toString().contains('LocationServiceDisabledException')) {
@@ -112,16 +138,15 @@ class AttendancePageState extends State<AttendancePage> {
         // If this was the last retry
         if (i == maxRetries - 1) {
           _showErrorDialog(
-            'Location Error',
-            'Unable to get your location after several attempts. Please ensure you have:\n\n'
-            '• Good GPS signal\n'
-            '• Internet connectivity\n'
-            '• Location services enabled\n\n'
-            'Would you like to try again?'
-          );
+              'Location Error',
+              'Unable to get your location after several attempts. Please ensure you have:\n\n'
+                  '• Good GPS signal\n'
+                  '• Internet connectivity\n'
+                  '• Location services enabled\n\n'
+                  'Would you like to try again?');
           return;
         }
-        
+
         // Wait before retrying
         await Future.delayed(Duration(seconds: 2));
       }
@@ -148,20 +173,19 @@ class AttendancePageState extends State<AttendancePage> {
 
         Placemark place = placemarks[0];
         setState(() {
-          currentAddress = 
-            '${place.street ?? ''}, ${place.subLocality ?? ''}, '
-            '${place.subAdministrativeArea ?? ''}, ${place.postalCode ?? ''}, '
-            '${place.country ?? ''}'
-                .replaceAll(RegExp(r', ,'), ',')  // Remove empty components
-                .replaceAll(RegExp(r',+'), ',')   // Remove multiple commas
-                .replaceAll(RegExp(r'^\s*,\s*|\s*,\s*$'), '')  // Remove leading/trailing commas
-                .trim();
+          currentAddress = '${place.street ?? ''}, ${place.subLocality ?? ''}, '
+                  '${place.subAdministrativeArea ?? ''}, ${place.postalCode ?? ''}, '
+                  '${place.country ?? ''}'
+              .replaceAll(RegExp(r', ,'), ',') // Remove empty components
+              .replaceAll(RegExp(r',+'), ',') // Remove multiple commas
+              .replaceAll(RegExp(r'^\s*,\s*|\s*,\s*$'),
+                  '') // Remove leading/trailing commas
+              .trim();
         });
         return; // Success - exit the retry loop
-
       } catch (e) {
         debugPrint('Address lookup attempt ${i + 1} failed: $e');
-        
+
         // If this was the last retry
         if (i == maxRetries - 1) {
           setState(() {
@@ -170,7 +194,7 @@ class AttendancePageState extends State<AttendancePage> {
           _showErrorSnackBar('Could not get street address');
           return;
         }
-        
+
         // Wait before retrying
         await Future.delayed(Duration(seconds: 1));
       }
@@ -190,7 +214,8 @@ class AttendancePageState extends State<AttendancePage> {
       }
 
       final today = DateTime.now();
-      final formattedDate = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+      final formattedDate =
+          '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
 
       final attendanceData = await AttendanceService.getAttendanceData(
         userData.employeeId,
@@ -206,21 +231,27 @@ class AttendancePageState extends State<AttendancePage> {
 
           if (attendanceData['check_in'] != null) {
             clockInTime = DateTime.parse(attendanceData['check_in']);
-            
+
             // If there's a check_in but no check_out, user is clocked in
             isClockedIn = true;
             if (attendanceData['check_out'] != null) {
               clockOutTime = DateTime.parse(attendanceData['check_out']);
-            } 
+            }
           }
 
           if (attendanceData['total_working_hours'] != null) {
             final hours = attendanceData['total_working_hours'].toInt();
-            final minutes = ((attendanceData['total_working_hours'] - hours) * 60).toInt();
-            final seconds = (((attendanceData['total_working_hours'] - hours) * 60 - minutes) * 60).toInt();
-            totalWorkingTime = "${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')} hours";
+            final minutes =
+                ((attendanceData['total_working_hours'] - hours) * 60).toInt();
+            final seconds =
+                (((attendanceData['total_working_hours'] - hours) * 60 -
+                            minutes) *
+                        60)
+                    .toInt();
+            totalWorkingTime =
+                "${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')} hours";
           }
-          
+
           checkInLocation = attendanceData['check_in_location'];
           checkOutLocation = attendanceData['check_out_location'];
         });
@@ -252,10 +283,31 @@ class AttendancePageState extends State<AttendancePage> {
     });
 
     try {
+      if (!isClockedIn) {
+        clockInTime = DateTime.now();
+        _startStopwatch();
+      } else {
+        clockOutTime = DateTime.now();
+        _stopStopwatch();
+      }
+      setState(() {
+        isClockedIn = !isClockedIn;
+      });
+    } catch (e) {
+      debugPrint(e.toString());
+    } finally {
+      setState(() {
+        isLoading = false;
+      });
+    }
+
+    try {
       // Get location
       await _getCurrentPosition();
 
-      if (currentPosition == null || currentAddress == null || googleMapsUrl == null) {
+      if (currentPosition == null ||
+          currentAddress == null ||
+          googleMapsUrl == null) {
         _showErrorSnackBar('Failed to get location information');
         return;
       }
@@ -298,7 +350,8 @@ class AttendancePageState extends State<AttendancePage> {
       }
 
       final today = DateTime.now();
-      final formattedDate = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+      final formattedDate =
+          '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
 
       final dailyData = await AttendanceService.getDailyAttendance(
         userData.employeeId,
@@ -319,14 +372,12 @@ class AttendancePageState extends State<AttendancePage> {
     }
   }
 
-
   /**
    * Component function section 
    */
   void _showErrorSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message))
-    );
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _showErrorDialog(String title, String message) {
@@ -356,59 +407,66 @@ class AttendancePageState extends State<AttendancePage> {
     );
   }
 
+  @override
+  void dispose() {
+    stopwatchTimer?.cancel();
+    super.dispose();
+  }
 
   Widget _buildClockButton() {
     final bool canClockInOut = !isLoading && !isDataLoading;
-    
-    // Determine button color and text
-    final Color buttonColor = isClockedIn ? Colors.black : Colors.red;
-    final String buttonText = isClockedIn ? "Clock Out" : "Clock In";
-    final String loadingText = isClockedIn ? "Processing Clock Out..." : "Processing Clock In...";
 
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: ElevatedButton(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: buttonColor,
-          minimumSize: const Size(double.infinity, 50),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
+    final String buttonText = isClockedIn ? "CLOCK OUT" : "CLOCK IN";
+    final String loadingText =
+        isClockedIn ? "Processing Clock Out..." : "Processing Clock In...";
+
+    return Center(
+      // Centers the button in the middle of the screen
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: isClockedIn
+                ? const Color.fromARGB(255, 0, 0, 0)
+                : const Color.fromRGBO(204, 0, 0, 1.0),
+            shape: const CircleBorder(),
+            padding: const EdgeInsets.all(80),
           ),
-        ),
-        onPressed: canClockInOut ? handleClockInOut : null,
-        child: isLoading
-            ? Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(
-                      color: Colors.white,
-                      strokeWidth: 2,
+          onPressed: canClockInOut ? handleClockInOut : null,
+          child: isLoading
+              ? Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(
+                      height: 30,
+                      width: 30,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 3,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    loadingText,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
+                    const SizedBox(height: 12),
+                    Text(
+                      loadingText,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                      ),
                     ),
+                  ],
+                )
+              : Text(
+                  buttonText,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
                   ),
-                ],
-              )
-            : Text(
-                buttonText,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 26,
                 ),
-              ),
+        ),
       ),
     );
   }
-  
 
   @override
   Widget build(BuildContext context) {
@@ -435,79 +493,86 @@ class AttendancePageState extends State<AttendancePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Clock In Button Section
             _buildClockButton(),
 
-            
-            // Total Working Hours Section
             Padding(
               padding: const EdgeInsets.all(16.0),
-              child: Container(
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                padding: const EdgeInsets.all(16.0),
-                child: isDataLoading
-                    ? const Center(
-                        child: CircularProgressIndicator(),
-                      )
-                    : Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Row(
-                            children: [
-                              Icon(Icons.work, size: 24),
-                              SizedBox(width: 8),
-                              Text(
-                                "Total working hour",
-                                style: TextStyle(
-                                    fontSize: 18, fontWeight: FontWeight.bold),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            totalWorkingTime,
-                            style: const TextStyle(
-                              color: Colors.red,
-                              fontSize: 23,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const Divider(),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    "Clock in: ${clockInTime != null ? clockInTime!.toLocal().toString().split(' ')[1].split('.')[0] : '--:--:--'}",
+              child: Center(
+                // Center the entire content
+                child: Container(
+                  width:
+                      MediaQuery.of(context).size.width * 0.9, // Adjust width
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  padding: const EdgeInsets.all(16.0),
+                  child: isDataLoading
+                      ? const Center(
+                          child: CircularProgressIndicator(),
+                        )
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            const Row(
+                              mainAxisAlignment:
+                                  MainAxisAlignment.center, // Center the row
+                              children: [
+                                Icon(Icons.work, size: 24),
+                                SizedBox(width: 8),
+                                Text(
+                                  "Total working hour",
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
                                   ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              totalWorkingTime,
+                              style: const TextStyle(
+                                color: Colors.red,
+                                fontSize: 23,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const Divider(),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      "Clock in: ${clockInTime != null ? clockInTime!.toLocal().toString().split(' ')[1].split('.')[0] : '--:--:--'}",
+                                    ),
+                                    Text(
+                                      "Clock out: ${clockOutTime != null ? clockOutTime!.toLocal().toString().split(' ')[1].split('.')[0] : '--:--:--'}",
+                                    ),
+                                  ],
+                                ),
+                                if (checkInLocation != null) ...[
+                                  const SizedBox(height: 8),
                                   Text(
-                                    "Clock out: ${clockOutTime != null ? clockOutTime!.toLocal().toString().split(' ')[1].split('.')[0] : '--:--:--'}",
+                                    "Check-in location: $checkInLocation",
+                                    style: const TextStyle(fontSize: 12),
                                   ),
                                 ],
-                              ),
-                              if (checkInLocation != null) ...[
-                                const SizedBox(height: 8),
-                                Text(
-                                  "Check-in location: $checkInLocation",
-                                  style: const TextStyle(fontSize: 12),
-                                ),
+                                if (checkOutLocation != null) ...[
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    "Check-out location: $checkOutLocation",
+                                    style: const TextStyle(fontSize: 12),
+                                  ),
+                                ],
                               ],
-                              if (checkOutLocation != null) ...[
-                                const SizedBox(height: 4),
-                                Text(
-                                  "Check-out location: $checkOutLocation",
-                                  style: const TextStyle(fontSize: 12),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ],
-                      ),
+                            ),
+                          ],
+                        ),
+                ),
               ),
             ),
 
@@ -553,8 +618,6 @@ class AttendancePageState extends State<AttendancePage> {
     );
   }
 }
-
-
 
 class DailyReportCard extends StatelessWidget {
   final Map<String, dynamic> record;
@@ -627,7 +690,8 @@ class DailyReportCard extends StatelessWidget {
               children: [
                 Text('Location: $checkInLocation'),
                 const SizedBox(height: 4),
-                Text('Device: ${deviceInfo['browser'] ?? 'Unknown'} on ${deviceInfo['os'] ?? 'Unknown'}'),
+                Text(
+                    'Device: ${deviceInfo['browser'] ?? 'Unknown'} on ${deviceInfo['os'] ?? 'Unknown'}'),
               ],
             ),
           ),
