@@ -24,5 +24,3 @@ class MyApp extends StatelessWidget {
     runApp(const MyApp());
   }
 }
-
-/*contoh liat facebook*/
