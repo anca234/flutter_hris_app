@@ -640,7 +640,8 @@ class _HomePageState extends State<HomePage> {
 // ElevatedButton yang ada di tengah layar
             Center(
               child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 18.0),
+                padding: const EdgeInsets.symmetric(
+                    vertical: 18.0, horizontal: 30.0),
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color.fromARGB(255, 255, 255, 255),
@@ -650,7 +651,7 @@ class _HomePageState extends State<HomePage> {
                       side: const BorderSide(
                         // Add outer border
                         color: Colors.black, // Border color
-                        width: 2, // Border width
+                        width: 1, // Border width
                       ),
                     ),
                     elevation: 5, // Shadow for depth effect
@@ -667,7 +668,7 @@ class _HomePageState extends State<HomePage> {
                     style: TextStyle(
                       color: Color.fromARGB(255, 0, 0, 0),
                       fontSize: 20,
-                      fontWeight: FontWeight.bold,
+                      // fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
