@@ -119,3 +119,49 @@ web/manifest.json
 .DS_Store
 
 
+
+# Flutter/Dart/Pub related
+**/android/**/build/
+**/ios/**/Flutter/
+**/ios/**/Pods/
+**/build/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+.idea/
+.vscode/
+*.iml
+
+# Web related
+web/.dart_tool/
+web/.flutter-plugins
+web/.flutter-plugins-dependencies
+
+# MacOS
+**/macos/Flutter/ephemeral/
+**/macos/Pods/
+**/macos/build/
+
+# Windows
+**/windows/Flutter/ephemeral/
+**/windows/build/
+
+# Linux
+**/linux/flutter/ephemeral/
+**/linux/build/
+
+# Coverage
+coverage/
+
+# Other
+*.log
+*.lock
+*.pyc
+*.pyo
+*.swp
+
+
+
