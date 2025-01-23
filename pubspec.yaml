@@ -15,9 +15,9 @@ dependencies:
   flutter_native_splash: ^2.3.11
   http: ^1.1.0
   shared_preferences: ^2.2.2
-  geolocator: ^10.1.0
-  geocoding: ^2.1.1
-  device_info_plus: ^9.1.0
+  geolocator: ^13.0.2
+  geocoding: ^3.0.0
+  device_info_plus: ^11.2.1
   uuid: ^4.2.1  # Added for GUID handling
 
 flutter_native_splash: 
@@ -31,8 +31,8 @@ flutter_native_splash:
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_launcher_icons: "^0.13.1"
-  flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.14.3
+  flutter_lints: ^5.0.0
 
 flutter_icons:
   android: true
