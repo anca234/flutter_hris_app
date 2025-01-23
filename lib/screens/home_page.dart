@@ -620,23 +620,6 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
 
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 4,
-                  mainAxisSpacing: 16,
-                  crossAxisSpacing: 16,
-                ),
-                itemCount: 8,
-                itemBuilder: (context, index) {
-                  return _buildOption(context, index);
-                },
-              ),
-            ),
-
 // ElevatedButton yang ada di tengah layar
             Center(
               child: Padding(
