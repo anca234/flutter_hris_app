@@ -27,11 +27,13 @@ class FeedbackScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Feedback Form"),
+        title: const Text(
+          "Feedback Form",
+          style: TextStyle(color: Colors.white),
+        ),
         backgroundColor: Colors.red,
       ),
       body: SingleChildScrollView(
-        // Membungkus konten dengan SingleChildScrollView
         child: Padding(
           padding: const EdgeInsets.all(16.0),
           child: Container(

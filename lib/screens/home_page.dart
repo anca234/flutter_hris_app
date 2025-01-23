@@ -640,17 +640,30 @@ class _HomePageState extends State<HomePage> {
 // ElevatedButton yang ada di tengah layar
             Center(
               child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 16.0),
+                padding: const EdgeInsets.symmetric(vertical: 18.0),
                 child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color.fromARGB(255, 255, 255, 255),
+                    minimumSize: const Size(double.infinity, 50),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      side: const BorderSide(
+                        // Add outer border
+                        color: Colors.black, // Border color
+                        width: 2, // Border width
+                      ),
+                    ),
+                    elevation: 5, // Shadow for depth effect
+                    shadowColor: Colors.black.withOpacity(0.5), // Shadow color
+                  ),
                   onPressed: () {
-                    // Ganti dengan route yang sesuai untuk feedback screen
                     Navigator.push(
                       context,
                       MaterialPageRoute(builder: (context) => FeedbackScreen()),
                     );
                   },
                   child: const Text(
-                    'Go to Feedback screen',
+                    'Send Feedback',
                     style: TextStyle(
                       color: Color.fromARGB(255, 0, 0, 0),
                       fontSize: 20,
