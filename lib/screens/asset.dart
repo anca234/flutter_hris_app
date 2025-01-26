@@ -17,6 +17,22 @@ class _AssetScreenState extends State<AssetScreen>
     _tabController = TabController(length: 2, vsync: this);
   }
 
+  void showComingSoonPopup(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Coming Soon"),
+        content: const Text("Fitur ini sedang dalam pengembangan."),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text("Tutup"),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _tabController.dispose();
@@ -78,11 +94,13 @@ class _AssetScreenState extends State<AssetScreen>
                 ),
                 const SizedBox(width: 10),
                 ElevatedButton(
-                  onPressed: () {},
+                  onPressed: () {
+                    showComingSoonPopup(context);
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.red,
                   ),
-                  child: const Text("Action",
+                  child: const Text("Search",
                       style: TextStyle(color: Colors.white, fontSize: 18)),
                 ),
               ],
@@ -103,67 +121,72 @@ class _AssetScreenState extends State<AssetScreen>
     );
   }
 
-  Widget _buildAssetTable() {
-    final List<Map<String, String>> assets = [
-      {
-        "Asset Type": "Laptop",
-        "Series Number": "J8N0WUKKR05C34C",
-        "Received Date": "23/11/2018",
-        "Model": "Asus Zenbook UX360",
-        "Status": "BAIK",
-      },
-      {
-        "Asset Type": "Kartu Asuransi",
-        "Series Number": "8000100654628081",
-        "Received Date": "23/11/2018",
-        "Model": "IP-1250",
-        "Status": "BAIK",
-      },
-      {
-        "Asset Type": "Kartu Parkir",
-        "Series Number": "6396 9094 2039 1143",
-        "Received Date": "23/11/2018",
-        "Model": "",
-        "Status": "BAIK",
-      },
-      {
-        "Asset Type": "Kartu Akses Internal",
-        "Series Number": "00615",
-        "Received Date": "23/11/2018",
-        "Model": "Master Card",
-        "Status": "BAIK",
-      },
-      {
-        "Asset Type": "Kartu Akses Gedung",
-        "Series Number": "44666",
-        "Received Date": "23/11/2018",
-        "Model": "",
-        "Status": "BAIK",
-      },
-      {
-        "Asset Type": "Kartu Identitas",
-        "Series Number": "06051306202202",
-        "Received Date": "23/11/2018",
-        "Model": "",
-        "Status": "BAIK",
-      },
-    ];
+ Widget _buildAssetTable() {
+  final List<Map<String, String>> assets = [
+    {
+      "Asset Type": "Laptop",
+      "Series Number": "J8N0WUKKR05C34C",
+      "Received Date": "23/11/2018",
+      "Model": "Asus Zenbook UX360",
+      "Status": "BAIK",
+    },
+    {
+      "Asset Type": "Kartu Asuransi",
+      "Series Number": "8000100654628081",
+      "Received Date": "23/11/2018",
+      "Model": "IP-1250",
+      "Status": "BAIK",
+    },
+    {
+      "Asset Type": "Kartu Parkir",
+      "Series Number": "6396 9094 2039 1143",
+      "Received Date": "23/11/2018",
+      "Model": "",
+      "Status": "BAIK",
+    },
+    {
+      "Asset Type": "Kartu Akses Internal",
+      "Series Number": "00615",
+      "Received Date": "23/11/2018",
+      "Model": "Master Card",
+      "Status": "BAIK",
+    },
+    {
+      "Asset Type": "Kartu Akses Gedung",
+      "Series Number": "44666",
+      "Received Date": "23/11/2018",
+      "Model": "",
+      "Status": "BAIK",
+    },
+    {
+      "Asset Type": "Kartu Identitas",
+      "Series Number": "06051306202202",
+      "Received Date": "23/11/2018",
+      "Model": "",
+      "Status": "BAIK",
+    },
+  ];
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: DataTable(
-        columns: const [
-          DataColumn(label: Text('Asset Type')),
-          DataColumn(label: Text('Series Number')),
-          DataColumn(label: Text('Received Date')),
-          DataColumn(label: Text('Model')),
-          DataColumn(label: Text('Status')),
-        ],
-        rows: assets.map((asset) {
-          return DataRow(
-            cells: [
-              DataCell(
-                Text(
+  return SingleChildScrollView(
+    scrollDirection: Axis.horizontal,
+    child: DataTable(
+      columns: const [
+        DataColumn(label: Text('Asset Type')),
+        DataColumn(label: Text('Series Number')),
+        DataColumn(label: Text('Received Date')),
+        DataColumn(label: Text('Model')),
+        DataColumn(label: Text('Status')),
+      ],
+      rows: assets.map((asset) {
+        return DataRow(
+          cells: [
+            DataCell(
+              GestureDetector(
+                onTap: () {
+                  // Trigger the ComingSoonPopup when clicked
+                  showComingSoonPopup(context);
+                },
+                child: Text(
                   asset['Asset Type']!,
                   style: const TextStyle(
                     color: Colors.blue,
@@ -171,14 +194,15 @@ class _AssetScreenState extends State<AssetScreen>
                   ),
                 ),
               ),
-              DataCell(Text(asset['Series Number']!)),
-              DataCell(Text(asset['Received Date']!)),
-              DataCell(Text(asset['Model']!)),
-              DataCell(Text(asset['Status']!)),
-            ],
-          );
-        }).toList(),
-      ),
-    );
-  }
+            ),
+            DataCell(Text(asset['Series Number']!)),
+            DataCell(Text(asset['Received Date']!)),
+            DataCell(Text(asset['Model']!)),
+            DataCell(Text(asset['Status']!)),
+          ],
+        );
+      }).toList(),
+    ),
+  );
+}
 }

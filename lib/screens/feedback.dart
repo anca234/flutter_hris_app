@@ -33,7 +33,9 @@ class FeedbackScreen extends StatelessWidget {
         ),
         backgroundColor: Colors.red,
       ),
+      backgroundColor: const Color.fromARGB(255, 255, 255, 255),
       body: SingleChildScrollView(
+        
         child: Padding(
           padding: const EdgeInsets.all(16.0),
           child: Container(

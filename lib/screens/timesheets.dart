@@ -17,6 +17,22 @@ class MyApp extends StatelessWidget {
   }
 }
 
+void showComingSoonPopup(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Coming Soon"),
+        content: const Text("Fitur ini sedang dalam pengembangan."),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text("Tutup"),
+          ),
+        ],
+      ),
+    );
+  }
+
 class TimeSheetPage extends StatelessWidget {
   const TimeSheetPage({Key? key}) : super(key: key);
 
@@ -147,7 +163,9 @@ class TimeSheetPageDetail extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   ElevatedButton(
-                    onPressed: () {},
+                    onPressed: () {
+                      showComingSoonPopup(context);
+                    },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.black87,
                     ),
@@ -155,7 +173,9 @@ class TimeSheetPageDetail extends StatelessWidget {
                         style: TextStyle(color: Colors.white)),
                   ),
                   ElevatedButton(
-                    onPressed: () {},
+                    onPressed: () {
+                      showComingSoonPopup(context);
+                    },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.grey,
                     ),
@@ -163,7 +183,9 @@ class TimeSheetPageDetail extends StatelessWidget {
                         style: TextStyle(color: Colors.white)),
                   ),
                   ElevatedButton(
-                    onPressed: () {},
+                    onPressed: () {
+                      showComingSoonPopup(context);
+                    },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color.fromRGBO(178, 34, 34, 1.0),
                     ),

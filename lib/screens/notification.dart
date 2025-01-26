@@ -43,7 +43,6 @@ class NotificationPage extends StatelessWidget {
                 decoration: InputDecoration(
                   hintText: "Search",
                   prefixIcon: Icon(Icons.search),
-                  suffixIcon: Icon(Icons.mic),
                   border: InputBorder.none,
                   contentPadding: EdgeInsets.symmetric(vertical: 15.0),
                 ),

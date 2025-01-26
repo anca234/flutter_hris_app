@@ -897,7 +897,9 @@ Future<void> _getCurrentPosition() async {
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                onPressed: () {},
+                onPressed: () {
+                  showComingSoonPopup(context);
+                },
                 child: const Text(
                   "More",
                   style: TextStyle(

@@ -10,6 +10,22 @@ class ProfileScreen extends StatefulWidget {
   _ProfileScreenState createState() => _ProfileScreenState();
 }
 
+void showComingSoonPopup(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Coming Soon"),
+        content: const Text("Fitur ini sedang dalam pengembangan."),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text("Tutup"),
+          ),
+        ],
+      ),
+    );
+  }
+
 class _ProfileScreenState extends State<ProfileScreen> {
   UserData? userData;
   final TextEditingController nameController = TextEditingController();
@@ -192,7 +208,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Center(
                 child: TextButton(
                   onPressed: () {
-                    // Handle more detail
+                    showComingSoonPopup(context);
                   },
                   child: const Text(
                     'More Detail',
