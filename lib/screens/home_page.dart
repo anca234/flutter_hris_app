@@ -80,23 +80,8 @@ class _HomePageState extends State<HomePage> {
       });
     }
   }
-  void _startTimer() {
-  _timer = Timer.periodic(Duration(seconds: 1), (timer) {
-    setState(() {
-      _elapsedSeconds++;
-      int hours = _elapsedSeconds ~/ 3600;
-      int minutes = (_elapsedSeconds % 3600) ~/ 60;
-      int seconds = _elapsedSeconds % 60;
-      totalWorkingTime = "${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}";
-    });
-  });
-}
 
-  void _stopTimer() {
-    if (_timer != null) {
-      _timer!.cancel();
-    }
-  }
+  
 
   Future<bool> _handleLocationPermission() async {
     bool serviceEnabled;
@@ -231,54 +216,65 @@ Future<void> _getCurrentPosition() async {
   }
 
   Future<void> _fetchAttendanceData() async {
-    setState(() {
-      isDataLoading = true;
-    });
+      setState(() {
+        isDataLoading = true;
+      });
 
-    try {
-      final userData = await AuthService.getCurrentUser();
-      if (userData == null) {
-        debugPrint('No user data available');
-        return;
-      }
+      try {
+        final userData = await AuthService.getCurrentUser();
+        if (userData == null) {
+          debugPrint('No user data available');
+          return;
+        }
 
-      final today = DateTime.now();
-      final formattedDate = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+        final today = DateTime.now();
+        final formattedDate = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
 
-      final attendanceData = await AttendanceService.getAttendanceData(
-        userData.employeeId,
-        formattedDate,
-      );
+        final attendanceData = await AttendanceService.getAttendanceData(
+          userData.employeeId,
+          formattedDate,
+        );
 
-      if (attendanceData != null) {
         setState(() {
-          // Reset states
+          // First, reset all states
           clockInTime = null;
           clockOutTime = null;
           isClockedIn = false;
+          totalWorkingTime = "--:--:--";
+          checkInLocation = null;
+          checkOutLocation = null;
 
-          if (attendanceData['check_in'] != null) {
-            clockInTime = DateTime.parse(attendanceData['check_in']);
-            
-            // If there's a check_in but no check_out, user is clocked in
-            isClockedIn = true;
-            if (attendanceData['check_out'] != null) {
-              clockOutTime = DateTime.parse(attendanceData['check_out']);
-            } 
-          }
+          if (attendanceData != null) {
+            // Handle check-in and check-out times
+            if (attendanceData['check_in'] != null) {
+              clockInTime = DateTime.parse(attendanceData['check_in']);
+              
+              if (attendanceData['check_out'] != null) {
+                clockOutTime = DateTime.parse(attendanceData['check_out']);
+                isClockedIn = false; // User has completed their shift
+              } else {
+                isClockedIn = true; // User is currently clocked in
+              }
 
-          if (attendanceData['total_working_hours'] != null) {
-            final hours = attendanceData['total_working_hours'].toInt();
-            final minutes = ((attendanceData['total_working_hours'] - hours) * 60).toInt();
-            final seconds = (((attendanceData['total_working_hours'] - hours) * 60 - minutes) * 60).toInt();
-            totalWorkingTime = "${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}";
+              // Set total working time from the API data
+              if (attendanceData['total_working_hours'] != null) {
+                double totalHours = attendanceData['total_working_hours'].toDouble();
+                int hours = totalHours.floor();
+                int minutes = ((totalHours - hours) * 60).floor();
+                int seconds = (((totalHours - hours) * 60 - minutes) * 60).round();
+                
+                totalWorkingTime = "${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}";
+              }
+
+              // Update location information
+              checkInLocation = attendanceData['check_in_location'];
+              checkOutLocation = attendanceData['check_out_location'];
+            }
           }
-          
-          checkInLocation = attendanceData['check_in_location'];
-          checkOutLocation = attendanceData['check_out_location'];
         });
-      } else {
-        // Reset all states if no attendance data is found
+      } catch (e) {
+        debugPrint('Error fetching attendance data: $e');
+        // In case of error, reset to safe default values
         setState(() {
           clockInTime = null;
           clockOutTime = null;
@@ -287,14 +283,11 @@ Future<void> _getCurrentPosition() async {
           checkInLocation = null;
           checkOutLocation = null;
         });
+      } finally {
+        setState(() {
+          isDataLoading = false;
+        });
       }
-    } catch (e) {
-      debugPrint('Error fetching attendance data: $e');
-    } finally {
-      setState(() {
-        isDataLoading = false;
-      });
-    }
   }
 
   String _formatTime(int seconds) {
@@ -307,61 +300,56 @@ Future<void> _getCurrentPosition() async {
 
 
   Future<void> handleClockInOut() async {
-  if (isLoading) return;
+    if (isLoading) return;
 
-  setState(() {
-    isLoading = true;
-  });
+    setState(() {
+      isLoading = true;
+    });
 
-  try {
-    // Get location
-    await _getCurrentPosition();
+    try {
+      // Get location
+      await _getCurrentPosition();
 
-    if (currentPosition == null || currentAddress == null || googleMapsUrl == null) {
-      _showErrorSnackBar('Failed to get location information');
-      return;
-    }
-
-    // Record attendance via API
-    final success = await AttendanceService.recordAttendance(
-      address: currentAddress!,
-      addressLink: googleMapsUrl!,
-    );
-
-    if (success) {
-      if (isClockedIn) {
-        // Clock Out
-        clockOutTime = DateTime.now();
-        _stopTimer();
-        totalWorkingTime = _formatTime(clockOutTime!.difference(clockInTime!).inSeconds);
-      } else {
-        // Clock In
-        clockInTime = DateTime.now();
-        _elapsedSeconds = 0;  // Reset timer
-        totalWorkingTime = "00:00:00";
-        _startTimer();
+      if (currentPosition == null || currentAddress == null || googleMapsUrl == null) {
+        _showErrorSnackBar('Failed to get location information');
+        return;
       }
 
-      setState(() {
-        isClockedIn = !isClockedIn;
-      });
+      // Record attendance via API
+      final success = await AttendanceService.recordAttendance(
+        address: currentAddress!,
+        addressLink: googleMapsUrl!,
+      );
 
-      // Refresh both attendance data and daily records
-      await Future.wait([
-        _fetchAttendanceData(),
-      ]);
-    } else {
-      _showErrorSnackBar('Failed to record attendance');
+      if (success) {
+        if (isClockedIn) {
+          // Clock Out
+          clockOutTime = DateTime.now();
+        } else {
+          // Clock In
+          clockInTime = DateTime.now();
+        }
+
+        setState(() {
+          isClockedIn = !isClockedIn;
+        });
+
+        // Refresh both attendance data and daily records
+        await Future.wait([
+          _fetchAttendanceData(),
+        ]);
+      } else {
+        _showErrorSnackBar('Failed to record attendance');
+      }
+    } catch (e) {
+      debugPrint('Error during clock in/out: $e');
+      _showErrorSnackBar('An error occurred');
+    } finally {
+      setState(() {
+        isLoading = false;
+      });
     }
-  } catch (e) {
-    debugPrint('Error during clock in/out: $e');
-    _showErrorSnackBar('An error occurred');
-  } finally {
-    setState(() {
-      isLoading = false;
-    });
   }
-}
 
   void _showErrorSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
