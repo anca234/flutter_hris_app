@@ -20,7 +20,7 @@ android {
         applicationId = "id.co.ptap.hcmobile"
         minSdk = 21 // Replace with your app's minimum SDK level
         targetSdk = 34
-        versionCode = 2
+        versionCode = 2 //update versioncode harus selalu lebih besar dari versioncode sebelumnya
         versionName = "1.0.2"
     }
 
