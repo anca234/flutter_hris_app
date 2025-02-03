@@ -1,4 +1,4 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="id.co.ptap.hcmobile">
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -6,7 +6,7 @@
     <uses-feature android:name="android.hardware.location.gps" android:required="true"/>
 
     <application
-        android:label="secondly"
+        android:label="hcmobile"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         
