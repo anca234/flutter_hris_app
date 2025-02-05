@@ -23,19 +23,37 @@ class AuthService {
   // Getter for auth token
   static String? get authToken => _authToken;
 
-  /// Initialize auth state
+  /// Initialize auth state with error handling
   static Future<void> init() async {
-    final prefs = await SharedPreferences.getInstance();
-    _authToken = prefs.getString(_tokenKey);
-    
-    final userDataString = prefs.getString(_userDataKey);
-    if (userDataString != null) {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      
+      // Safely get token
       try {
-        _currentUser = UserData.fromJson(jsonDecode(userDataString));
+        _authToken = prefs.getString(_tokenKey);
       } catch (e) {
-        // If stored user data is corrupted, clear it
-        await logout();
+        print('Error reading token: $e');
+        _authToken = null;
       }
+      
+      // Safely get user data
+      try {
+        final userDataString = prefs.getString(_userDataKey);
+        if (userDataString != null) {
+          _currentUser = UserData.fromJson(jsonDecode(userDataString));
+        }
+      } catch (e) {
+        print('Error reading user data: $e');
+        _currentUser = null;
+        // Clean up potentially corrupted data
+        await prefs.remove(_userDataKey);
+      }
+    } catch (e) {
+      print('Critical initialization error: $e');
+      // Reset state if initialization fails
+      _authToken = null;
+      _currentUser = null;
+      rethrow;
     }
   }
 
@@ -84,10 +102,15 @@ class AuthService {
     }
   }
 
-  /// Check if user is logged in
+  /// Check if user is logged in with safe error handling
   static Future<bool> isLoggedIn() async {
-    if (_authToken == null) return false;
-    return await validateToken();
+    try {
+      if (_authToken == null) return false;
+      return await validateToken();
+    } catch (e) {
+      print('Error checking login state: $e');
+      return false;
+    }
   }
 
   /// Get current user data
