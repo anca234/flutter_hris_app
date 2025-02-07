@@ -43,22 +43,20 @@ class _HomePageState extends State<HomePage> {
   static const int maxRetries = 3;
   static const int locationTimeout = 10; // seconds
 
-
   @override
-
   void dispose() {
     if (_timer != null) {
       _timer!.cancel();
     }
     super.dispose();
   }
+
   void initState() {
     super.initState();
     _loadUserData();
     _fetchAttendanceData();
     _updateGreeting();
   }
-
 
   void _updateGreeting() {
     final hour = DateTime.now().hour;
@@ -81,15 +79,14 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  
-
   Future<bool> _handleLocationPermission() async {
     bool serviceEnabled;
     LocationPermission permission;
 
     serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
-      _showErrorSnackBar('Location services are disabled. Please enable the services');
+      _showErrorSnackBar(
+          'Location services are disabled. Please enable the services');
       return false;
     }
 
@@ -110,7 +107,7 @@ class _HomePageState extends State<HomePage> {
     return true;
   }
 
-Future<void> _getCurrentPosition() async {
+  Future<void> _getCurrentPosition() async {
     final hasPermission = await _handleLocationPermission();
     if (!hasPermission) return;
 
@@ -128,15 +125,15 @@ Future<void> _getCurrentPosition() async {
 
         setState(() {
           currentPosition = position;
-          googleMapsUrl = 'https://www.google.com/maps/@${position.latitude},${position.longitude},18z';
+          googleMapsUrl =
+              'https://www.google.com/maps/@${position.latitude},${position.longitude},18z';
         });
-        
+
         await _getAddressFromLatLng(position);
         return; // Success - exit the retry loop
-        
       } catch (e) {
         debugPrint('Location attempt ${i + 1} failed: $e');
-        
+
         if (e is TimeoutException) {
           _showErrorSnackBar('Location request timed out. Retrying...');
         } else if (e.toString().contains('LocationServiceDisabledException')) {
@@ -150,16 +147,15 @@ Future<void> _getCurrentPosition() async {
         // If this was the last retry
         if (i == maxRetries - 1) {
           _showErrorDialog(
-            'Location Error',
-            'Unable to get your location after several attempts. Please ensure you have:\n\n'
-            '• Good GPS signal\n'
-            '• Internet connectivity\n'
-            '• Location services enabled\n\n'
-            'Would you like to try again?'
-          );
+              'Location Error',
+              'Unable to get your location after several attempts. Please ensure you have:\n\n'
+                  '• Good GPS signal\n'
+                  '• Internet connectivity\n'
+                  '• Location services enabled\n\n'
+                  'Would you like to try again?');
           return;
         }
-        
+
         // Wait before retrying
         await Future.delayed(Duration(seconds: 2));
       }
@@ -186,20 +182,19 @@ Future<void> _getCurrentPosition() async {
 
         Placemark place = placemarks[0];
         setState(() {
-          currentAddress = 
-            '${place.street ?? ''}, ${place.subLocality ?? ''}, '
-            '${place.subAdministrativeArea ?? ''}, ${place.postalCode ?? ''}, '
-            '${place.country ?? ''}'
-                .replaceAll(RegExp(r', ,'), ',')  // Remove empty components
-                .replaceAll(RegExp(r',+'), ',')   // Remove multiple commas
-                .replaceAll(RegExp(r'^\s*,\s*|\s*,\s*$'), '')  // Remove leading/trailing commas
-                .trim();
+          currentAddress = '${place.street ?? ''}, ${place.subLocality ?? ''}, '
+                  '${place.subAdministrativeArea ?? ''}, ${place.postalCode ?? ''}, '
+                  '${place.country ?? ''}'
+              .replaceAll(RegExp(r', ,'), ',') // Remove empty components
+              .replaceAll(RegExp(r',+'), ',') // Remove multiple commas
+              .replaceAll(RegExp(r'^\s*,\s*|\s*,\s*$'),
+                  '') // Remove leading/trailing commas
+              .trim();
         });
         return; // Success - exit the retry loop
-
       } catch (e) {
         debugPrint('Address lookup attempt ${i + 1} failed: $e');
-        
+
         // If this was the last retry
         if (i == maxRetries - 1) {
           setState(() {
@@ -208,7 +203,7 @@ Future<void> _getCurrentPosition() async {
           _showErrorSnackBar('Could not get street address');
           return;
         }
-        
+
         // Wait before retrying
         await Future.delayed(Duration(seconds: 1));
       }
@@ -216,78 +211,82 @@ Future<void> _getCurrentPosition() async {
   }
 
   Future<void> _fetchAttendanceData() async {
-      setState(() {
-        isDataLoading = true;
-      });
+    setState(() {
+      isDataLoading = true;
+    });
 
-      try {
-        final userData = await AuthService.getCurrentUser();
-        if (userData == null) {
-          debugPrint('No user data available');
-          return;
-        }
-
-        final today = DateTime.now();
-        final formattedDate = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
-
-        final attendanceData = await AttendanceService.getAttendanceData(
-          userData.employeeId,
-          formattedDate,
-        );
-
-        setState(() {
-          // First, reset all states
-          clockInTime = null;
-          clockOutTime = null;
-          isClockedIn = false;
-          totalWorkingTime = "--:--:--";
-          checkInLocation = null;
-          checkOutLocation = null;
-
-          if (attendanceData != null) {
-            // Handle check-in and check-out times
-            if (attendanceData['check_in'] != null) {
-              clockInTime = DateTime.parse(attendanceData['check_in']);
-              
-              if (attendanceData['check_out'] != null) {
-                clockOutTime = DateTime.parse(attendanceData['check_out']);
-                isClockedIn = false; // User has completed their shift
-              } else {
-                isClockedIn = true; // User is currently clocked in
-              }
-
-              // Set total working time from the API data
-              if (attendanceData['total_working_hours'] != null) {
-                double totalHours = attendanceData['total_working_hours'].toDouble();
-                int hours = totalHours.floor();
-                int minutes = ((totalHours - hours) * 60).floor();
-                int seconds = (((totalHours - hours) * 60 - minutes) * 60).round();
-                
-                totalWorkingTime = "${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}";
-              }
-
-              // Update location information
-              checkInLocation = attendanceData['check_in_location'];
-              checkOutLocation = attendanceData['check_out_location'];
-            }
-          }
-        });
-      } catch (e) {
-        debugPrint('Error fetching attendance data: $e');
-        // In case of error, reset to safe default values
-        setState(() {
-          clockInTime = null;
-          clockOutTime = null;
-          isClockedIn = false;
-          totalWorkingTime = "--:--:--";
-          checkInLocation = null;
-          checkOutLocation = null;
-        });
-      } finally {
-        setState(() {
-          isDataLoading = false;
-        });
+    try {
+      final userData = await AuthService.getCurrentUser();
+      if (userData == null) {
+        debugPrint('No user data available');
+        return;
       }
+
+      final today = DateTime.now();
+      final formattedDate =
+          '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+
+      final attendanceData = await AttendanceService.getAttendanceData(
+        userData.employeeId,
+        formattedDate,
+      );
+
+      setState(() {
+        // First, reset all states
+        clockInTime = null;
+        clockOutTime = null;
+        isClockedIn = false;
+        totalWorkingTime = "--:--:--";
+        checkInLocation = null;
+        checkOutLocation = null;
+
+        if (attendanceData != null) {
+          // Handle check-in and check-out times
+          if (attendanceData['check_in'] != null) {
+            clockInTime = DateTime.parse(attendanceData['check_in']);
+
+            if (attendanceData['check_out'] != null) {
+              clockOutTime = DateTime.parse(attendanceData['check_out']);
+              isClockedIn = false; // User has completed their shift
+            } else {
+              isClockedIn = true; // User is currently clocked in
+            }
+
+            // Set total working time from the API data
+            if (attendanceData['total_working_hours'] != null) {
+              double totalHours =
+                  attendanceData['total_working_hours'].toDouble();
+              int hours = totalHours.floor();
+              int minutes = ((totalHours - hours) * 60).floor();
+              int seconds =
+                  (((totalHours - hours) * 60 - minutes) * 60).round();
+
+              totalWorkingTime =
+                  "${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}";
+            }
+
+            // Update location information
+            checkInLocation = attendanceData['check_in_location'];
+            checkOutLocation = attendanceData['check_out_location'];
+          }
+        }
+      });
+    } catch (e) {
+      debugPrint('Error fetching attendance data: $e');
+      // In case of error, reset to safe default values
+      setState(() {
+        clockInTime = null;
+        clockOutTime = null;
+        isClockedIn = false;
+        totalWorkingTime = "--:--:--";
+        checkInLocation = null;
+        checkOutLocation = null;
+      });
+    } finally {
+      setState(() {
+        isDataLoading = false;
+      });
+    }
   }
 
   String _formatTime(int seconds) {
@@ -296,8 +295,6 @@ Future<void> _getCurrentPosition() async {
     int remainingSeconds = seconds % 60;
     return "${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${remainingSeconds.toString().padLeft(2, '0')} hours";
   }
-  
-
 
   Future<void> handleClockInOut() async {
     if (isLoading) return;
@@ -310,7 +307,9 @@ Future<void> _getCurrentPosition() async {
       // Get location
       await _getCurrentPosition();
 
-      if (currentPosition == null || currentAddress == null || googleMapsUrl == null) {
+      if (currentPosition == null ||
+          currentAddress == null ||
+          googleMapsUrl == null) {
         _showErrorSnackBar('Failed to get location information');
         return;
       }
@@ -352,9 +351,8 @@ Future<void> _getCurrentPosition() async {
   }
 
   void _showErrorSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message))
-    );
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _showErrorDialog(String title, String message) {
@@ -386,55 +384,67 @@ Future<void> _getCurrentPosition() async {
 
   Widget _buildClockButton() {
     final bool canClockInOut = !isLoading && !isDataLoading;
-    
+
     // Determine button color and text
     final Color buttonColor = isClockedIn ? Colors.black : Colors.red;
     final String buttonText = isClockedIn ? "CLOCK OUT" : "CLOCK IN";
-    final String loadingText = isClockedIn ? "Processing Clock Out..." : "Processing Clock In...";
+    final String loadingText =
+        isClockedIn ? "Processing Clock Out..." : "Processing Clock In...";
 
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: ElevatedButton(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: buttonColor,
-          minimumSize: const Size(double.infinity, 50),
-          shape: const CircleBorder(),
-          padding: const EdgeInsets.all(80),
-        ),
-        onPressed: canClockInOut ? handleClockInOut : null,
-        child: isLoading
-            ? Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const SizedBox(
-                    height: 24,
-                    width: 24,
-                    child: CircularProgressIndicator(
-                      color: Colors.white,
-                      strokeWidth: 2,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    loadingText,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              )
-            : Text(
-                buttonText,
-                style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 34,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double buttonSize = constraints.maxWidth * 0.4;
+
+        return Center(
+          child: ClipOval(
+            child: SizedBox(
+              width: buttonSize,
+              height: buttonSize,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: buttonColor,
+                  shape: const CircleBorder(),
                 ),
+                onPressed: canClockInOut ? handleClockInOut : null,
+                child: isLoading
+                    ? Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const SizedBox(
+                            height: 24,
+                            width: 24,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            loadingText,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      )
+                    : FittedBox(
+                        child: Text(
+                          buttonText,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 34,
+                          ),
+                        ),
+                      ),
               ),
-      ),
+            ),
+          ),
+        );
+      },
     );
-}
+  }
 
   void showComingSoonPopup(BuildContext context) {
     showDialog(
@@ -639,7 +649,6 @@ Future<void> _getCurrentPosition() async {
     );
   }
 
-
   Widget _buildProfileAvatar() {
     if (userData == null) {
       return const CircleAvatar(
@@ -670,7 +679,9 @@ Future<void> _getCurrentPosition() async {
 
   @override
   Widget build(BuildContext context) {
-    Color textColor = _elapsedSeconds >= 28800 ? Colors.green : const Color.fromARGB(255, 255, 0, 0);
+    Color textColor = _elapsedSeconds >= 28800
+        ? Colors.green
+        : const Color.fromARGB(255, 255, 0, 0);
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.white,
@@ -732,7 +743,6 @@ Future<void> _getCurrentPosition() async {
                 ],
               ),
             ),
-            
 
             // Clock In Section
             _buildClockButton(),
@@ -754,8 +764,7 @@ Future<void> _getCurrentPosition() async {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Row(
-                            mainAxisAlignment:
-                              MainAxisAlignment.center,
+                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Icon(Icons.work, size: 24),
                               SizedBox(width: 8),
@@ -767,7 +776,6 @@ Future<void> _getCurrentPosition() async {
                             ],
                           ),
                           const SizedBox(height: 8),
-                          
                           Center(
                             child: Text(
                               totalWorkingTime,
@@ -775,15 +783,16 @@ Future<void> _getCurrentPosition() async {
                                 color: textColor,
                                 fontSize: 35,
                                 fontWeight: FontWeight.bold,
-                                ),
                               ),
+                            ),
                           ),
                           const Divider(),
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text(
                                     "Clock in: ${clockInTime != null ? clockInTime!.toLocal().toString().split(' ')[1].split('.')[0] : '--:--:--'}",
