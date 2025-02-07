@@ -4,9 +4,18 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
-/*import 'package:device_info_plus/device_info_plus.dart';*/
 import '../config/api_config.dart';
 import '../service/auth_service.dart';
+
+class AttendanceResponse {
+  final bool success;
+  final String message;
+  
+  AttendanceResponse({
+    required this.success,
+    required this.message,
+  });
+}
 
 class AttendanceService {
   static final String baseUrl = ApiConfig.baseUrl;
@@ -81,7 +90,6 @@ class AttendanceService {
     }
   }
 
-  // Function to get device info
   static Future<Map<String, String>> _getDeviceInfo() async {
     DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
     String browser = 'unknown';
@@ -111,26 +119,25 @@ class AttendanceService {
     };
   }
 
-  // Function to record attendance
-  static Future<bool> recordAttendance({
+  static Future<AttendanceResponse> recordAttendance({
     required String address,
     required String addressLink,
   }) async {
     try {
-      // Get current user and token
       final currentUser = await AuthService.getCurrentUser();
       final token = AuthService.authToken;
 
       if (currentUser == null || token == null) {
-        debugPrint('User not authenticated');
-        return false;
+        return AttendanceResponse(
+          success: false,
+          message: 'User not authenticated. Please log in again.',
+        );
       }
 
       final deviceInfo = await _getDeviceInfo();
 
       final response = await http.post(
-        Uri.parse(
-            '$baseUrl/api_mobile.php?operation=recordAttendance'), // Adjust endpoint as needed
+        Uri.parse('$baseUrl/api_mobile.php?operation=recordAttendance'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -145,14 +152,33 @@ class AttendanceService {
       );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        return true;
+        final jsonResponse = json.decode(response.body);
+        return AttendanceResponse(
+          success: jsonResponse['success'] ?? false,
+          message: jsonResponse['message'] ?? 'Attendance recorded successfully',
+        );
       } else {
-        debugPrint('Failed to record attendance: ${response.body}');
-        return false;
+        final jsonResponse = json.decode(response.body);
+        return AttendanceResponse(
+          success: false,
+          message: jsonResponse['message'] ?? 'Failed to record attendance. Server responded with status ${response.statusCode}',
+        );
       }
+    } on FormatException {
+      return AttendanceResponse(
+        success: false,
+        message: 'Invalid response format from server',
+      );
+    } on http.ClientException {
+      return AttendanceResponse(
+        success: false,
+        message: 'Network error. Please check your internet connection.',
+      );
     } catch (e) {
-      debugPrint('Error recording attendance: $e');
-      return false;
+      return AttendanceResponse(
+        success: false,
+        message: 'An unexpected error occurred: ${e.toString()}',
+      );
     }
   }
 }

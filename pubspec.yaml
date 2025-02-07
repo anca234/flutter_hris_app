@@ -19,6 +19,7 @@ dependencies:
   geocoding: ^3.0.0
   device_info_plus: ^11.2.1
   uuid: ^4.2.1  # Added for GUID handling
+  jwt_decoder: ^2.0.1
 
 flutter_native_splash: 
   android: true

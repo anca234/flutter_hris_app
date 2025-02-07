@@ -54,22 +54,17 @@ class AuthScreen extends StatelessWidget {
                   },
                   style: ElevatedButton.styleFrom(
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10.0),
-                      side: BorderSide(color: Colors.red),
-                    ),
+                        borderRadius: BorderRadius.circular(10.0),
+                        side: BorderSide(color: Colors.red)),
                     backgroundColor: const Color.fromRGBO(204, 0, 0, 1.0),
-                    padding: EdgeInsets.symmetric(
-                        horizontal: 20, vertical: 10), // Adjusted padding
-                    minimumSize:
-                        Size(250, 50), // Ensures the button has enough space
+                    padding:
+                        EdgeInsets.symmetric(horizontal: 133, vertical: 10),
                   ),
-                  child: const Text(
-                    'Sign In',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                    ),
-                  ),
+                  child: const Text('Sign In',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                      )),
                 ),
               ],
             ),
@@ -225,9 +220,6 @@ class AuthScreen extends StatelessWidget {
 
       if (response.success) {
         // Store auth data
-        await AuthStorageService.saveAuthData(response);
-
-        // Navigate to main screen
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (context) => const MainScreen()),
           (Route<dynamic> route) => false,

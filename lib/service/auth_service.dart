@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:secondly/service/api_client.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -9,6 +10,7 @@ import '../config/api_config.dart';
 class AuthService {
   static const String _tokenKey = 'auth_token';
   static const String _userDataKey = 'user_data';
+  static const String _persistLoginKey = 'persist_login';
   static final _apiClient = ApiClient();
 
   // Private constructor to prevent instantiation
@@ -23,48 +25,54 @@ class AuthService {
   // Getter for auth token
   static String? get authToken => _authToken;
 
+  static bool _initialized = false;
+
   /// Initialize auth state with error handling
   static Future<void> init() async {
+    if (_initialized) return;
+    
     try {
       final prefs = await SharedPreferences.getInstance();
       
-      // Safely get token
-      try {
-        _authToken = prefs.getString(_tokenKey);
-      } catch (e) {
-        print('Error reading token: $e');
-        _authToken = null;
+      // Check if we should persist login
+      final shouldPersist = prefs.getBool(_persistLoginKey) ?? true;
+      if (!shouldPersist) {
+        await logout();
+        return;
       }
+
+      // Get stored token
+      _authToken = prefs.getString(_tokenKey);
       
-      // Safely get user data
-      try {
-        final userDataString = prefs.getString(_userDataKey);
-        if (userDataString != null) {
+      // Get stored user data
+      final userDataString = prefs.getString(_userDataKey);
+      if (userDataString != null) {
+        try {
           _currentUser = UserData.fromJson(jsonDecode(userDataString));
+        } catch (e) {
+          print('Error parsing stored user data: $e');
+          await prefs.remove(_userDataKey);
+          _currentUser = null;
         }
-      } catch (e) {
-        print('Error reading user data: $e');
-        _currentUser = null;
-        // Clean up potentially corrupted data
-        await prefs.remove(_userDataKey);
       }
+
+      _initialized = true;
     } catch (e) {
-      print('Critical initialization error: $e');
-      // Reset state if initialization fails
+      print('Auth initialization error: $e');
       _authToken = null;
       _currentUser = null;
       rethrow;
     }
   }
 
-  /// Login method with enhanced error handling
-  static Future<LoginResponse> login(String username, String password) async {
-    // Admin bypass for development/testing
-    if (ApiConfig.isDevelopment && username == 'admin' && password == 'admin') {
-      return _handleAdminLogin();
-    }
 
+   // Login with persist option
+  static Future<LoginResponse> login(String username, String password, {bool persist = true}) async {
     try {
+      if (ApiConfig.isDevelopment && username == 'admin' && password == 'admin') {
+        return await _handleAdminLogin();
+      }
+
       final response = await _apiClient.post(
         'auth.php?action=login',
         body: {
@@ -76,7 +84,7 @@ class AuthService {
       final loginResponse = LoginResponse.fromJson(response);
 
       if (loginResponse.success) {
-        await _saveAuthData(loginResponse);
+        await _saveAuthData(loginResponse, persist);
       }
 
       return loginResponse;
@@ -84,6 +92,52 @@ class AuthService {
       throw _handleAuthError(e);
     }
   }
+
+  // Check if token is expired
+  static bool isTokenExpired(String token) {
+    try {
+      Map<String, dynamic> decodedToken = JwtDecoder.decode(token);
+      final expiration = DateTime.fromMillisecondsSinceEpoch(decodedToken['exp'] * 1000);
+      return DateTime.now().isAfter(expiration);
+    } catch (e) {
+      print('Error decoding token: $e');
+      return true;
+    }
+  }
+
+  // Check if token will expire soon (within 5 minutes)
+  static bool willTokenExpireSoon(String token) {
+    try {
+      Map<String, dynamic> decodedToken = JwtDecoder.decode(token);
+      final expiration = DateTime.fromMillisecondsSinceEpoch(decodedToken['exp'] * 1000);
+      final fiveMinutesFromNow = DateTime.now().add(const Duration(minutes: 5));
+      return fiveMinutesFromNow.isAfter(expiration);
+    } catch (e) {
+      return true;
+    }
+  }
+
+  // Refresh token
+  static Future<bool> refreshToken() async {
+    try {
+      final response = await _apiClient.post(
+        'auth.php?action=refresh',
+        headers: {'Authorization': 'Bearer $_authToken'},
+      );
+
+      if (response['success'] == true && response['token'] != null) {
+        final prefs = await SharedPreferences.getInstance();
+        _authToken = response['token'];
+        await prefs.setString(_tokenKey, _authToken!);
+        return true;
+      }
+      return false;
+    } catch (e) {
+      print('Token refresh failed: $e');
+      return false;
+    }
+  }
+
 
   /// Validate token
   static Future<bool> validateToken() async {
@@ -102,11 +156,28 @@ class AuthService {
     }
   }
 
-  /// Check if user is logged in with safe error handling
+  // Modified isLoggedIn to handle token expiration
   static Future<bool> isLoggedIn() async {
     try {
+      final prefs = await SharedPreferences.getInstance();
+      _authToken = prefs.getString(_tokenKey);
+
       if (_authToken == null) return false;
-      return await validateToken();
+
+      // If token is expired, try to refresh it
+      if (isTokenExpired(_authToken!)) {
+        final refreshed = await refreshToken();
+        if (!refreshed) {
+          await logout();
+          return false;
+        }
+      }
+      // If token will expire soon, refresh in background
+      else if (willTokenExpireSoon(_authToken!)) {
+        refreshToken(); // Don't await this
+      }
+
+      return true;
     } catch (e) {
       print('Error checking login state: $e');
       return false;
@@ -177,21 +248,37 @@ class AuthService {
       user: dummyUserData,
     );
 
-    await _saveAuthData(dummyResponse);
+    await _saveAuthData(dummyResponse,true);
     return dummyResponse;
   }
 
-  /// Save authentication data
-  static Future<void> _saveAuthData(LoginResponse loginResponse) async {
+   // Save authentication data
+  static Future<void> _saveAuthData(LoginResponse loginResponse, bool persist) async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      
+      // Save persistence preference
+      await prefs.setBool(_persistLoginKey, persist);
+      
+      // Save auth data
       await prefs.setString(_tokenKey, loginResponse.token);
       await prefs.setString(_userDataKey, jsonEncode(loginResponse.user.toJson()));
       
       _authToken = loginResponse.token;
       _currentUser = loginResponse.user;
+      _initialized = true;
     } catch (e) {
       throw Exception('Failed to save auth data: $e');
+    }
+  }
+
+  // Check for internet connection
+  static Future<bool> _hasInternetConnection() async {
+    try {
+      // Add your preferred connectivity check here
+      return true;
+    } catch (e) {
+      return false;
     }
   }
 
